@@ -1,7 +1,7 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net46</TargetFramework>
+    <TargetFramework>net461</TargetFramework>
     <AssemblyName>RavenM</AssemblyName>
     <Description>A Ravenfield multiplayer mod.</Description>
     <Version>0.4</Version>
@@ -21,23 +21,23 @@
     <EmbeddedResource Include="assets\marker.png" />
     <EmbeddedResource Include="assets\marker_left.png" />
     <EmbeddedResource Include="assets\marker_right.png" />
-	  <EmbeddedResource Include="assets\mic.png" />
+    <EmbeddedResource Include="assets\mic.png" />
     <EmbeddedResource Include="assets\kickanimcontroller" />
-  <EmbeddedResource Include="assets\UIBundle" />
+    <EmbeddedResource Include="assets\UIBundle" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="BepInEx.Analyzers" Version="1.0.8" PrivateAssets="all" />
-    <PackageReference Include="BepInEx.Core" Version="(,6)" />
-    <PackageReference Include="BepInEx.PluginInfoProps" Version="(,2)" />
+    <PackageReference Include="BepInEx.Analyzers" Version="1.*" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.Core" Version="[5.*, )" />
+    <PackageReference Include="BepInEx.PluginInfoProps" Version="[1.*, 2)" />
     <PackageReference Include="UnityEngine.Modules" Version="5.6.0" IncludeAssets="compile" />
   </ItemGroup>
-  
+
   <ItemGroup Condition="'$(TargetFramework.TrimEnd(`0123456789`))' == 'net'">
-    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
+	<PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.2" PrivateAssets="all" />
   </ItemGroup>
-  
- <ItemGroup>
+
+  <ItemGroup>
     <Reference Include="Assembly-CSharp">
       <HintPath>libs\Assembly-CSharp.dll</HintPath>
       <Private>False</Private>
