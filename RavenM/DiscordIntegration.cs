@@ -5,6 +5,7 @@ using RavenM.DiscordGameSDK;
 using Steamworks;
 using UnityEngine;
 using System.Runtime.InteropServices;
+using RavenM.Lobby;
 
 namespace RavenM
 {

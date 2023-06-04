@@ -10,7 +10,7 @@ using RavenM.RSPatch.Wrapper;
 using System.Text.RegularExpressions;
 using System.Globalization;
 
-namespace RavenM
+namespace RavenM.Lobby
 {
     [HarmonyPatch(typeof(ModManager), nameof(ModManager.OnGameManagerStart))]
     public class CleanupListPatch
@@ -21,7 +21,7 @@ namespace RavenM
                 __instance.noWorkshopMods = true;
         }
     }
-    
+
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.StartLevel))]
     public class OnStartPatch
     {
@@ -173,7 +173,7 @@ namespace RavenM
             if (LobbySystem.instance.IsLobbyOwner)
                 IngameNetManager.instance.StartAsServer();
             else
-                IngameNetManager.instance.StartAsClient(LobbySystem.instance.OwnerID); 
+                IngameNetManager.instance.StartAsClient(LobbySystem.instance.OwnerID);
 
             SteamMatchmaking.SetLobbyMemberData(LobbySystem.instance.ActualLobbyID, "ready", "yes");
         }
@@ -383,7 +383,8 @@ namespace RavenM
             return ret;
         }
 
-        public void SetLobbyData(string key, string value) {
+        public void SetLobbyData(string key, string value)
+        {
             if (!InLobby || !LobbyDataReady || !IsLobbyOwner)
                 return;
 
@@ -433,7 +434,7 @@ namespace RavenM
                 if (MidgameJoin)
                     SetLobbyData("hotjoin", "true");
                 if (nameTagsEnabled)
-                    SetLobbyData("nameTags","true");
+                    SetLobbyData("nameTags", "true");
                 if (nameTagsForTeamOnly)
                     SetLobbyData("nameTagsForTeamOnly", "true");
 
@@ -503,7 +504,7 @@ namespace RavenM
                     }
                 }
                 TriggerModRefresh();
-                bool nameTagsConverted = bool.TryParse(SteamMatchmaking.GetLobbyData(ActualLobbyID, "nameTags"),out bool nameTagsOn);
+                bool nameTagsConverted = bool.TryParse(SteamMatchmaking.GetLobbyData(ActualLobbyID, "nameTags"), out bool nameTagsOn);
                 if (nameTagsConverted)
                 {
                     nameTagsEnabled = nameTagsOn;
@@ -656,7 +657,7 @@ namespace RavenM
             {
                 InstantActionMaps.instance.teamDropdown.value = 0;
             }
-            
+
             if (IsLobbyOwner)
             {
                 SetLobbyData("gameMode", InstantActionMaps.instance.gameModeDropdown.value.ToString());
@@ -852,7 +853,7 @@ namespace RavenM
                                 newPrefab = ActorManager.instance.defaultVehiclePrefabs[idx];
                             }
                             else
-                            {    
+                            {
                                 newPrefab = sortedModdedVehicles[idx];
                             }
                         }
@@ -901,7 +902,7 @@ namespace RavenM
                     InstantActionMaps.instance.skinDropdowns[i].value = int.Parse(SteamMatchmaking.GetLobbyData(ActualLobbyID, i + "skin"));
                 }
 
-                string[] enabledMutators = SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, "mutators").Split(',');
+                string[] enabledMutators = SteamMatchmaking.GetLobbyData(instance.ActualLobbyID, "mutators").Split(',');
                 foreach (var mutator in ModManager.instance.loadedMutators)
                     mutator.isEnabled = false;
                 foreach (var mutatorStr in enabledMutators)
@@ -919,7 +920,7 @@ namespace RavenM
                         {
                             mutator.isEnabled = true;
 
-                            string configStr = SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, mutatorIndex + "config");
+                            string configStr = SteamMatchmaking.GetLobbyData(instance.ActualLobbyID, mutatorIndex + "config");
                             string pattern = @"(?<!\\),";
                             string[] config = Regex.Split(configStr, pattern);
 
@@ -942,7 +943,7 @@ namespace RavenM
 
         private void OnGUI()
         {
-            if (GameManager.instance == null || (GameManager.IsIngame() && LoadoutUi.instance != null && LoadoutUi.HasBeenClosed()))
+            if (GameManager.instance == null || GameManager.IsIngame() && LoadoutUi.instance != null && LoadoutUi.HasBeenClosed())
                 return;
 
             var menu_page = (int)typeof(MainMenu).GetField("page", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(MainMenu.instance);
@@ -1019,10 +1020,10 @@ namespace RavenM
                     GUILayout.Space(5f);
 
                     GUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                            GUILayout.Label($"MEMBER LIMIT: ");
-                            LobbyMemberCap = GUILayout.TextField(LobbyMemberCap);
-                        GUILayout.FlexibleSpace();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"MEMBER LIMIT: ");
+                    LobbyMemberCap = GUILayout.TextField(LobbyMemberCap);
+                    GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 
                     // Ensure we are working with a valid (positive) integer.
@@ -1098,9 +1099,9 @@ namespace RavenM
                 else if (GUIStack.Peek() == "Direct")
                 {
                     GUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                            GUILayout.Label($"DIRECT CONNECT");
-                        GUILayout.FlexibleSpace();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"DIRECT CONNECT");
+                    GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 
                     GUILayout.Space(10f);
@@ -1135,9 +1136,9 @@ namespace RavenM
                 else if (GUIStack.Peek() == "Browse")
                 {
                     GUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                            GUILayout.Label($"BROWSE");
-                        GUILayout.FlexibleSpace();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"BROWSE");
+                    GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 
                     GUILayout.Space(10f);
@@ -1151,9 +1152,9 @@ namespace RavenM
                     GUILayout.Space(10f);
 
                     GUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                            GUILayout.Label($"LOBBIES - ({OpenLobbies.Count})");
-                        GUILayout.FlexibleSpace();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"LOBBIES - ({OpenLobbies.Count})");
+                    GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 
                     foreach (var lobby in OpenLobbies)
@@ -1174,7 +1175,7 @@ namespace RavenM
                                     name = name.Substring(0, 10) + "...";
                                 }
                                 name += $" - ({SteamMatchmaking.GetNumLobbyMembers(lobby)}/{SteamMatchmaking.GetLobbyMemberLimit(lobby)})";
-                            }  
+                            }
                         }
 
                         if (GUILayout.Button($"{name}") && hasData)
@@ -1195,15 +1196,15 @@ namespace RavenM
                     var name = SteamFriends.GetFriendPersonaName(owner);
 
                     GUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                            GUILayout.Label($"{name}'s");
-                        GUILayout.FlexibleSpace();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"{name}'s");
+                    GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 
                     GUILayout.BeginHorizontal();
-                        GUILayout.FlexibleSpace();
-                            GUILayout.Label($"LOBBY");
-                        GUILayout.FlexibleSpace();
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label($"LOBBY");
+                    GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 
                     GUILayout.Space(10f);
@@ -1276,9 +1277,9 @@ namespace RavenM
                 }
 
                 GUILayout.BeginHorizontal();
-                    GUILayout.FlexibleSpace();
-                        GUILayout.Label($"LOBBY - {len}/{SteamMatchmaking.GetLobbyMemberLimit(ActualLobbyID)}");
-                    GUILayout.FlexibleSpace();
+                GUILayout.FlexibleSpace();
+                GUILayout.Label($"LOBBY - {len}/{SteamMatchmaking.GetLobbyMemberLimit(ActualLobbyID)}");
+                GUILayout.FlexibleSpace();
                 GUILayout.EndHorizontal();
 
                 GUILayout.Space(5f);
@@ -1309,8 +1310,8 @@ namespace RavenM
                     string team = SteamMatchmaking.GetLobbyMemberData(ActualLobbyID, memberId, "team");
                     string name = SteamFriends.GetFriendPersonaName(memberId);
 
-                    var readyColor = (GameManager.IsInMainMenu() ? SteamMatchmaking.GetLobbyMemberData(ActualLobbyID, memberId, "loaded") == "yes" 
-                                                                    : SteamMatchmaking.GetLobbyMemberData(ActualLobbyID, memberId, "ready") == "yes") 
+                    var readyColor = GameManager.IsInMainMenu() ? SteamMatchmaking.GetLobbyMemberData(ActualLobbyID, memberId, "loaded") == "yes"
+                                                                    : SteamMatchmaking.GetLobbyMemberData(ActualLobbyID, memberId, "ready") == "yes"
                                                                     ? "green" : "red";
 
                     if (memberId != KickPrompt)
@@ -1392,7 +1393,7 @@ namespace RavenM
 
                     GUILayout.BeginHorizontal();
                     GUILayout.FlexibleSpace();
-                    GUILayout.Label($"{Math.Round( punBytesDownloaded / Math.Pow(1024, 2), 2 )}MB/{Math.Round( punBytesTotal / Math.Pow(1024, 2), 2)}MB");
+                    GUILayout.Label($"{Math.Round(punBytesDownloaded / Math.Pow(1024, 2), 2)}MB/{Math.Round(punBytesTotal / Math.Pow(1024, 2), 2)}MB");
                     GUILayout.FlexibleSpace();
                     GUILayout.EndHorizontal();
 

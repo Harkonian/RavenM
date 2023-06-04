@@ -8,6 +8,7 @@ using System.Reflection.Emit;
 using System.Collections;
 using System.IO;
 using Steamworks;
+using RavenM.Lobby;
 
 namespace RavenM
 {
