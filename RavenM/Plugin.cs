@@ -172,10 +172,8 @@ namespace RavenM
         {
             JoinedLobbyFromArgument = true;
             CSteamID lobbyId = new CSteamID(ulong.Parse(Arguments["-ravenm-lobby"]));
-            SteamMatchmaking.JoinLobby(lobbyId);
-            LobbySystem.instance.InLobby = true;
-            LobbySystem.instance.IsLobbyOwner = false;
-            LobbySystem.instance.LobbyDataReady = false;
+
+            LobbySystem.instance.AttemptToJoinLobby(lobbyId);
         }
     }
 }

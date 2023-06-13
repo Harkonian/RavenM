@@ -18,13 +18,13 @@ namespace RavenM.RSPatch.Wrapper
         [Getter]
         public static string[] GetLobbyMembers()
         {
-            int numPlayers = SteamMatchmaking.GetNumLobbyMembers(LobbySystem.instance.ActualLobbyID);
+            int numPlayers = SteamMatchmaking.GetNumLobbyMembers(LobbySystem.instance.LobbyID);
 
             string[] members = new string[numPlayers];
 
             for (int i = 0; i < numPlayers; i++)
             {
-                members[i] = SteamFriends.GetFriendPersonaName(SteamMatchmaking.GetLobbyMemberByIndex(LobbySystem.instance.ActualLobbyID, i));
+                members[i] = SteamFriends.GetFriendPersonaName(SteamMatchmaking.GetLobbyMemberByIndex(LobbySystem.instance.LobbyID, i));
             }
             return members;
         }

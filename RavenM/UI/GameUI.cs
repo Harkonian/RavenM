@@ -1,7 +1,6 @@
 ﻿using HarmonyLib;
 using RavenM.Lobby;
 using Steamworks;
-using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -64,7 +63,7 @@ namespace RavenM.UI
         {
             Plugin.logger.LogInfo("Nametags Start");
             instance = this;
-            onlyForTeam = LobbySystem.instance.nameTagsForTeamOnly;
+            onlyForTeam = LobbySystem.instance.ServerSettings.TeamOnlyNameTags;
             if (onlyForTeam)
                 focusRange = focusRange * 2;
             SetCustomColor();
@@ -99,14 +98,14 @@ namespace RavenM.UI
         {
             if (instance == null)
                 return;
-            bool parsedValue = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, "nameTags"),out bool nameTagsEnabled);
+            bool parsedValue = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.LobbyID, "nameTags"),out bool nameTagsEnabled);
             if (parsedValue)
-                LobbySystem.instance.nameTagsEnabled = nameTagsEnabled;
-            bool parsedValue2 = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, "nameTagsForTeamOnly"), out bool nameTagsTeamOnlyEnabled);
+                LobbySystem.instance.ServerSettings.NameTagsEnabled = nameTagsEnabled;
+            bool parsedValue2 = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.LobbyID, "nameTagsForTeamOnly"), out bool nameTagsTeamOnlyEnabled);
             if (parsedValue2)
-                LobbySystem.instance.nameTagsForTeamOnly = nameTagsTeamOnlyEnabled;
+                LobbySystem.instance.ServerSettings.TeamOnlyNameTags = nameTagsTeamOnlyEnabled;
             //LobbySystem.instance.nameTagsForTeamOnly;
-            bool settingsNameTagEnabled = LobbySystem.instance.nameTagsEnabled;
+            bool settingsNameTagEnabled = LobbySystem.instance.ServerSettings.NameTagsEnabled;
             SetCustomColor();
             nameTagsEnabled = (OptionsPatch.showHUD && settingsNameTagEnabled);
             nameTagfontSize = Mathf.RoundToInt(OptionsPatch.GetOptionWithName<float>(OptionsPatch.RavenMOptions.NameTagScaleMultiplier, OptionsPatch.OptionTypes.Slider));
@@ -116,7 +115,7 @@ namespace RavenM.UI
                 Color color = GetColorForTeam(nameTag.actor.team);
                 nameTag.teamColor = color;
                 nameTagObjects[nameTag].color = color;
-                if (LobbySystem.instance.nameTagsForTeamOnly)
+                if (LobbySystem.instance.ServerSettings.TeamOnlyNameTags)
                     if (nameTag.actor.team != playerTeamID)
                         nameTag.canvasGroup.alpha = 0f;
                 nameTagObjects[nameTag].resizeTextMaxSize = nameTagfontSize;
@@ -135,7 +134,7 @@ namespace RavenM.UI
         }
         public void CreateNameTagInstance(Actor actor,RectTransform canvasTransform)
         {
-            bool settingsNameTagEnabled = LobbySystem.instance.nameTagsEnabled;
+            bool settingsNameTagEnabled = LobbySystem.instance.ServerSettings.NameTagsEnabled;
             nameTagsEnabled = (OptionsPatch.showHUD && settingsNameTagEnabled);
             if (!nameTagsEnabled)
             {

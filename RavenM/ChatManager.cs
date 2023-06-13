@@ -1,21 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using HarmonyLib;
-using Steamworks;
-using System.Collections;
-using System.IO;
-using System.IO.Compression;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.InteropServices;
-using UnityEngine;
-using Ravenfield.SpecOps;
-using RavenM.Commands;
+﻿using RavenM.Commands;
 using RavenM.Lobby;
+using Steamworks;
+using System.IO;
+using System.Text;
+using UnityEngine;
 
 namespace RavenM
 {
@@ -130,7 +118,7 @@ namespace RavenM
         {
             ulong steamId = pCallback.m_ulSteamIDUser;
             var buf = new byte[4096];
-            int len = SteamMatchmaking.GetLobbyChatEntry(LobbySystem.instance.ActualLobbyID, (int)pCallback.m_iChatID, out CSteamID user, buf, buf.Length, out EChatEntryType chatType);
+            int len = SteamMatchmaking.GetLobbyChatEntry(LobbySystem.instance.LobbyID, (int)pCallback.m_iChatID, out CSteamID user, buf, buf.Length, out EChatEntryType chatType);
             string chat = DecodeLobbyChat(buf, len);
 
             if (steamId != SteamId.m_SteamID)
@@ -157,12 +145,13 @@ namespace RavenM
                 // ...means the owner left.
                 if (LobbySystem.instance.OwnerID == id)
                 {
-                    LobbySystem.instance.NotificationText = "Lobby closed by host.";
-                    SteamMatchmaking.LeaveLobby(LobbySystem.instance.ActualLobbyID);
+                    LobbySystem.instance.SetNotification(Notifications.LobbyClosed);
+                    SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
                 }
             }
             else
             {
+                // TODO: Why the hell are we just kicking members who've already been kicked rather than stopping them from re-joining? Is this just an extra precaution?
                 var id = new CSteamID(pCallback.m_ulSteamIDUserChanged);
 
                 if (LobbySystem.instance.CurrentKickedMembers.Contains(id))
@@ -367,8 +356,8 @@ namespace RavenM
                         var member = new CSteamID(memberIdI);
                         if (member == SteamId)
                         {
-                            LobbySystem.instance.NotificationText = "You were kicked from the lobby! You can no longer join this lobby.";
-                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.ActualLobbyID);
+                            LobbySystem.instance.SetNotification(Notifications.PlayerKicked);
+                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
                         }
                         else if (!LobbySystem.instance.CurrentKickedMembers.Contains(member))
                         {
@@ -487,8 +476,8 @@ namespace RavenM
                         var member = new CSteamID(memberIdI);
                         if (member == SteamId)
                         {
-                            LobbySystem.instance.NotificationText = "You were kicked from the lobby! You can no longer join this lobby.";
-                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.ActualLobbyID);
+                            LobbySystem.instance.SetNotification(Notifications.PlayerKicked);
+                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
                         }
                         else if (!LobbySystem.instance.CurrentKickedMembers.Contains(member))
                         {
@@ -530,7 +519,7 @@ namespace RavenM
         public void SendLobbyChat(string message)
         {
             var bytes = Encoding.UTF8.GetBytes(message);
-            SteamMatchmaking.SendLobbyChatMsg(LobbySystem.instance.ActualLobbyID, bytes, bytes.Length);
+            SteamMatchmaking.SendLobbyChatMsg(LobbySystem.instance.LobbyID, bytes, bytes.Length);
         }
 
         public string DecodeLobbyChat(byte[] bytes, int len)
