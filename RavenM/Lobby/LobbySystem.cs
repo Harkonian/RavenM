@@ -50,7 +50,7 @@ namespace RavenM.Lobby
             {
                 IngameNetManager.instance.OpenRelay();
 
-                Plugin.logger.LogInfo($"{DateTime.Now.ToString("HH:mm:ss:ff")} - Set LobbyStarted True");
+                Plugin.logger.LogInfo($"{DateTime.Now:HH:mm:ss:ff} - Set LobbyStarted True");
                 instance.SetLobbyData("started", "yes");
                 instance.MatchSettings.MatchStarted = true;
                 
@@ -283,8 +283,7 @@ namespace RavenM.Lobby
             Plugin.logger.LogInfo("InstantActionMenuAwake");
             LobbySystem lobbyInstance = LobbySystem.instance;
             lobbyInstance.RegisterOnTeamChangeListener();
-            if (lobbyInstance.MapCache != null)
-                lobbyInstance.MapCache.UpdateCacheFromIAM(__instance);
+            lobbyInstance.MapCache?.UpdateCacheFromIAM(__instance);
         }
     }
 
@@ -328,21 +327,21 @@ namespace RavenM.Lobby
 
         public bool ReadyToPlay = false;
 
-        public List<PublishedFileId_t> ServerMods = new List<PublishedFileId_t>();
+        public List<PublishedFileId_t> ServerMods = new();
 
-        public List<PublishedFileId_t> ModsToDownload = new List<PublishedFileId_t>();
+        public List<PublishedFileId_t> ModsToDownload = new();
 
         public bool LoadedServerMods { get; private set; } = false;
 
         public bool RequestModReload { get; private set; } = false;
 
-        public Dictionary<CSteamID, ServerSettings> OpenLobbies = new Dictionary<CSteamID, ServerSettings>();
+        public Dictionary<CSteamID, ServerSettings> OpenLobbies = new();
 
-        public List<CSteamID> CurrentKickedMembers = new List<CSteamID>();
+        public List<CSteamID> CurrentKickedMembers = new();
 
-        public List<GameObject> sortedModdedVehicles = new List<GameObject>();
+        public List<GameObject> sortedModdedVehicles = new();
 
-        public Dictionary<string, string> LobbySetCache = new Dictionary<string, string>();
+        public Dictionary<string, string> LobbySetCache = new();
 
         public ServerSettings ServerSettings = null;
 
@@ -356,26 +355,30 @@ namespace RavenM.Lobby
 
         public LobbyGUI GUI = null;
 
-        private List<Coroutine> coroutines = new List<Coroutine>();
+        private readonly List<Coroutine> coroutines = new();
 
         public bool MatchSubscriptionsToServer = false;
 
         public void SendMatchSettings()
         {
-            if (MatchSettings != null)
+            if (MatchSettings == null)
             {
-                DebugLoggingCache.ExportToLog(MatchSettings);
-                SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, MatchSettings);
+                return;
             }
+
+            DebugLoggingCache.ExportToLog(MatchSettings);
+            SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, MatchSettings);
         }
 
         public void SendServerSettings()
         {
-            if (ServerSettings != null)
+            if (ServerSettings == null)
             {
-                DebugLoggingCache.ExportToLog(ServerSettings);
-                SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, ServerSettings);
+                return;
             }
+
+            DebugLoggingCache.ExportToLog(ServerSettings);
+            SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, ServerSettings);
         }
 
         public void ReadServerSettings()
@@ -515,7 +518,7 @@ namespace RavenM.Lobby
         public void AttemptToJoinLobby(uint lobbyId)
         {
             const EChatSteamIDInstanceFlags lobbyFlags = EChatSteamIDInstanceFlags.k_EChatInstanceFlagLobby | EChatSteamIDInstanceFlags.k_EChatInstanceFlagMMSLobby;
-            CSteamID steamLobbyId = new CSteamID(new AccountID_t(lobbyId), (uint)lobbyFlags, EUniverse.k_EUniversePublic, EAccountType.k_EAccountTypeChat);
+            CSteamID steamLobbyId = new(new AccountID_t(lobbyId), (uint)lobbyFlags, EUniverse.k_EUniversePublic, EAccountType.k_EAccountTypeChat);
             AttemptToJoinLobby(steamLobbyId);
         }
 
@@ -598,7 +601,7 @@ namespace RavenM.Lobby
         private void SetupServerMods()
         {
             bool needsToReload = false;
-            List<PublishedFileId_t> mods = new List<PublishedFileId_t>();
+            List<PublishedFileId_t> mods = new();
 
             foreach (var mod in ModManager.instance.GetActiveMods())
             {
@@ -635,7 +638,7 @@ namespace RavenM.Lobby
             {
                 if (mod_str == string.Empty)
                     continue;
-                PublishedFileId_t mod_id = new PublishedFileId_t(ulong.Parse(mod_str));
+                PublishedFileId_t mod_id = new(ulong.Parse(mod_str));
                 if (mod_id.ToString() == "0")
                     continue;
 
@@ -747,7 +750,7 @@ namespace RavenM.Lobby
                 if (InLobby && LobbyDataReady && !IsLobbyOwner)
                 {
                     bool actualReloadRequired = false; // If the clients and server already perfectly match in terms of enabled mods we don't need to do a content refresh.
-                    List<bool> oldState = new List<bool>();
+                    List<bool> oldState = new();
 
                     foreach (var mod in ModManager.instance.mods)
                     {
@@ -1161,8 +1164,7 @@ namespace RavenM.Lobby
 
         private void OnGUI()
         {
-            if (GUI != null)
-                GUI.DrawLobbyGui(this);
+            GUI?.DrawLobbyGui(this);
         }
 
         private void LogMatchSettings(MatchSettings matchSettings)

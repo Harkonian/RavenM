@@ -31,7 +31,7 @@ namespace RavenM.Lobby
             public static Color DebugColor = Color.magenta; // If we see magenta anywhere something has gone wrong.
             public static Color NotLoaded = Color.red;
             public static Color FullyLoaded = Color.green;
-            public static Color WarningColor = new Color(1.0f, .75f, 0.0f);
+            public static Color WarningColor = new(1.0f, .75f, 0.0f);
 
             public static string ConvertToOpenTag(Color color)
             {
@@ -91,7 +91,7 @@ namespace RavenM.Lobby
             SubscriptionWarning
         }
 
-        private Stack<MenuState> GUIStack = new Stack<MenuState>();
+        private readonly Stack<MenuState> GUIStack = new();
 
         private struct TeamDisplayData
         {
@@ -105,7 +105,8 @@ namespace RavenM.Lobby
             }
         }
 
-        private static List<TeamDisplayData> teamData = new List<TeamDisplayData> {
+        private static readonly List<TeamDisplayData> teamData = new()
+        {
             new TeamDisplayData("X", ColorBank.DebugColor),
             new TeamDisplayData("E", Color.blue),
             new TeamDisplayData("R", Color.red)
@@ -132,8 +133,8 @@ namespace RavenM.Lobby
 
         private static Texture2D CreateSolidTexture(Color color)
         {
-            Texture2D tex = new Texture2D(1, 1);
-            tex.SetPixel(0, 0, Color.black);
+            Texture2D tex = new(1, 1);
+            tex.SetPixel(0, 0, color);
             tex.Apply();
             return tex;
         }
@@ -200,12 +201,10 @@ namespace RavenM.Lobby
             // if the field is empty don't ding that against the user right away.
             if (!LobbyMemberCapString.IsNullOrWhiteSpace())
             {
-                uint parsedVal;
-
                 // Ensure we are working with a valid uint.
                 // Specifically only changing this when above the limit because we don't want the user's text to be reset if they
                 // clear the text field and then insert 1 as the start of 18 or 100 or similar.
-                if (!uint.TryParse(LobbyMemberCapString, out parsedVal) || parsedVal > ServerSettings.LobbyMemberMax)
+                if (!uint.TryParse(LobbyMemberCapString, out uint parsedVal) || parsedVal > ServerSettings.LobbyMemberMax)
                 {
                     LobbyMemberCapString = CurrentServerSettings.LobbyMemberCap.ToString();
                 }
@@ -361,7 +360,7 @@ namespace RavenM.Lobby
                 }
             }
 
-            CSteamID ownerID = new CSteamID(CurrentServerSettings.OwnerID);
+            CSteamID ownerID = new(CurrentServerSettings.OwnerID);
 
             string name = SteamFriends.GetFriendPersonaName(ownerID);
 
@@ -383,9 +382,8 @@ namespace RavenM.Lobby
             var modList = SteamMatchmaking.GetLobbyData(SelectedLobbyID, "mods");
             var modCount = modList != string.Empty ? modList.Split(',').Length : 0;
             GUILayout.Label($"MODS: {modCount}");
-            MatchSettings matchSettings = null;
 
-            if (!SteamLobbyDataTransfer.ImportFromLobbyData(SelectedLobbyID, out matchSettings) || Plugin.BuildGUID != CurrentServerSettings.BuildID)
+            if (!SteamLobbyDataTransfer.ImportFromLobbyData(SelectedLobbyID, out MatchSettings matchSettings) || Plugin.BuildGUID != CurrentServerSettings.BuildID)
             {
                 GUILayout.Label(ColorBank.CreateColoredLabelString("This lobby is running on a different version of RavenM!", Color.red));
             }
@@ -617,7 +615,7 @@ namespace RavenM.Lobby
 
                     GUILayout.Space(5f);
 
-                    GUIStyle progressStyle = new GUIStyle();
+                    GUIStyle progressStyle = new();
                     progressStyle.normal.background = LobbyGUI.ProgressTexture;
 
                     GUILayout.BeginHorizontal();
@@ -647,8 +645,7 @@ namespace RavenM.Lobby
         {
             string name = SteamFriends.GetFriendPersonaName(memberId);
 
-            LobbyMemberData memberData = null;
-            if (!SteamLobbyDataTransfer.ImportFromMemberData(system.LobbyID, memberId, out memberData))
+            if (!SteamLobbyDataTransfer.ImportFromMemberData(system.LobbyID, memberId, out LobbyMemberData memberData))
             {
                 Plugin.logger.LogInfo($"Failed to import lobby member data for {name}");
                 memberData = null;
