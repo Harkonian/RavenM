@@ -1,12 +1,12 @@
 ﻿using HarmonyLib;
 using RavenM.RSPatch.Wrapper;
+using SimpleJSON;
 using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
-using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace RavenM.Lobby
@@ -38,10 +38,16 @@ namespace RavenM.Lobby
             {
                 foreach (var memberId in instance.GetLobbyMembers())
                 {
-                    if (!SteamLobbyDataTransfer.ImportFromMemberData(instance.LobbyID, memberId, out LobbyMemberData memberData) 
-                        || memberData.Loaded == false)
-                        return false;
+                    if (!SteamLobbyDataTransfer.ImportFromMemberData(instance.LobbyID, memberId, out LobbyMemberData memberData) || memberData.Loaded == false)
+                    {
+                        if (!LobbySystem.instance.HasCommittedToStart)
+                        {
+                            LobbySystem.instance.IntentionToStart = true;
+                            return false;
+                        }
+                    }
                 }
+                LobbySystem.instance.HasCommittedToStart = false;
             }
 
             instance.ResetOnTeamChanged();
@@ -161,14 +167,14 @@ namespace RavenM.Lobby
                 // FIXME: Shitty hack. The assumption is map destructibles are consistent
                 // and thus will always spawn in the same positions regardless of the
                 // client run. I have no idea how correct this assumption actually is.
-                int id = root.transform.position.GetHashCode();
+                int id = root.transform.position.GetHashCode() ^ root.name.GetHashCode();
 
                 if (root.TryGetComponent(out GuidComponent guid))
                     id = guid.guid;
                 else
                     root.AddComponent<GuidComponent>().guid = id;
 
-                IngameNetManager.instance.ClientDestructibles.Add(id, root);
+                IngameNetManager.instance.ClientDestructibles[id] = root;
 
                 Plugin.logger.LogInfo($"Registered new destructible root with name: {root.name} and id: {id}");
             }
@@ -358,6 +364,10 @@ namespace RavenM.Lobby
         private readonly List<Coroutine> coroutines = new();
 
         public bool MatchSubscriptionsToServer = false;
+
+        public bool IntentionToStart = false;
+
+        public bool HasCommittedToStart = false;
 
         public void SendMatchSettings()
         {
@@ -1003,13 +1013,14 @@ namespace RavenM.Lobby
 
                     enabledMutators.Add(id);
 
-                    var config = new List<string>();
+                    var serializedMutators = new JSONArray();
                     foreach (var item in mutator.configuration.GetAllFields())
                     {
-                        string safeValue = item.SerializeValue().Replace(",", "\\,");
-                        config.Add(safeValue);
+                        JSONNode node = new JSONString(item.SerializeValue());
+                        serializedMutators.Add(node);
                     }
-                    SetLobbyData(id + "config", string.Join(",", config.ToArray()));
+
+                    SetLobbyData(id + "config", serializedMutators.ToString());
                 }
                 SetLobbyData("mutators", string.Join(",", enabledMutators.ToArray()));
             }
@@ -1140,14 +1151,24 @@ namespace RavenM.Lobby
                             mutator.isEnabled = true;
 
                             string configStr = SteamMatchmaking.GetLobbyData(instance.LobbyID, mutatorIndex + "config");
-                            string pattern = @"(?<!\\),";
-                            string[] config = Regex.Split(configStr, pattern);
 
-                            int i = 0;
-                            foreach (var item in mutator.configuration.GetAllFields())
+                            JSONArray jsonConfig = JSON.Parse(configStr).AsArray;
+                            List<string> configList = new List<string>();
+
+                            foreach (var configItem in jsonConfig)
                             {
-                                item.DeserializeValue(config[i].Replace("\\,", ","));
-                                i++;
+                                configList.Add((string)configItem.Value);
+                            }
+
+                            string[] config = configList.ToArray();
+
+                            for (int i = 0; i < mutator.configuration.GetAllFields().Count(); i++)
+                            {
+                                var item = mutator.configuration.GetAllFields().ElementAt(i);
+                                if (item.SerializeValue() != "")
+                                {
+                                    item?.DeserializeValue(config[i]);
+                                }
                             }
                         }
                     }

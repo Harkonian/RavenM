@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net461</TargetFramework>
+    <TargetFramework>net46</TargetFramework>
     <AssemblyName>RavenM</AssemblyName>
     <Description>A Ravenfield multiplayer mod.</Description>
     <Version>0.4.01</Version>

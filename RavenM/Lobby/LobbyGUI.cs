@@ -1,8 +1,10 @@
 ﻿using BepInEx;
 using Steamworks;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace RavenM.Lobby
@@ -217,7 +219,10 @@ namespace RavenM.Lobby
             CurrentServerSettings.FriendsOnlyLobby = GUILayout.Toggle(CurrentServerSettings.FriendsOnlyLobby, "FRIENDS ONLY");
             CurrentServerSettings.IncludeInBrowseList = GUILayout.Toggle(CurrentServerSettings.IncludeInBrowseList, "SHOW ON LOBBY\nLIST");
             CurrentServerSettings.MidgameJoin = GUILayout.Toggle(CurrentServerSettings.MidgameJoin, "JOINABLE\nMIDGAME");
-            CurrentServerSettings.NameTagsEnabled = GUILayout.Toggle(CurrentServerSettings.NameTagsEnabled, "NAMETAGS");
+
+            GUILayout.Space(7f);
+            CreateLabelSection("NAMETAGS");
+            CurrentServerSettings.NameTagsEnabled = GUILayout.Toggle(CurrentServerSettings.NameTagsEnabled, "ENABLED");
             CurrentServerSettings.TeamOnlyNameTags = GUILayout.Toggle(CurrentServerSettings.TeamOnlyNameTags, "FOR TEAM ONLY");
 
             GUILayout.Space(10f);
@@ -496,17 +501,45 @@ namespace RavenM.Lobby
                 GUILayout.BeginVertical(lobbyStyle);
 
                 CreateLabelSection("RavenM Message:", Color.red);
-
                 GUILayout.Space(7f);
 
                 CreateLabelSection(NotificationText);
-
                 GUILayout.Space(15f);
 
                 CreateHorizontalGUISection(() =>
                 {
                     if (GUILayout.Button("OK"))
                         NotificationText = string.Empty;
+                });
+
+                GUILayout.EndVertical();
+                GUILayout.EndArea();
+            }
+
+            if (GameManager.IsInMainMenu() && system.IntentionToStart)
+            {
+                // TODO: Refactor the three notification/warning/confirmation menus.
+                GUILayout.BeginArea(new Rect((Screen.width - 250f) / 2f, (Screen.height - 200f) / 2f, 250f, 200f), string.Empty);
+                GUILayout.BeginVertical(lobbyStyle);
+
+                CreateLabelSection("RavenM WARNING:", Color.red);
+                GUILayout.Space(7f);
+
+                CreateLabelSection("Starting the match before all members have loaded is experimental and may cause inconsistencies.Are you sure?");
+                GUILayout.Space(15f);
+
+                CreateHorizontalGUISection(() =>
+                {
+                    if (GUILayout.Button(ColorBank.CreateColoredLabelString("CONTINUE", ColorBank.FullyLoaded)))
+                    {
+                        system.HasCommittedToStart = true;
+                        system.IntentionToStart = false;
+                        InstantActionMaps.instance.StartGame();
+                    }
+                    if (GUILayout.Button("ABORT"))
+                    {
+                        system.IntentionToStart = false;
+                    }
                 });
 
                 GUILayout.EndVertical();
@@ -555,6 +588,18 @@ namespace RavenM.Lobby
 
             if (system.InLobby && system.LobbyDataReady)
             {
+                if (!IngameNetManager.instance.IsClient)
+                {
+                    if (ChatManager.instance.SelectedChatPosition == 1) // Position to the right
+                    {
+                        ChatManager.instance.CreateChatArea(true, 300f, 400f, 570f, Screen.width - 310f);
+                    }
+                    else
+                    {
+                        ChatManager.instance.CreateChatArea(true, 300f, 400f, 570f);
+                    }
+                }
+
                 GUILayout.BeginArea(new Rect(10f, 10f, 150f, 10000f), string.Empty);
                 GUILayout.BeginVertical(lobbyStyle);
 
