@@ -391,6 +391,17 @@ namespace RavenM.Lobby
             SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, ServerSettings);
         }
 
+        public void ReadMatchSettings()
+        {
+            if (SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out MatchSettings))
+                DebugLoggingCache.ExportToLog(MatchSettings);
+            else
+            {
+                Plugin.logger.LogError("Failed to read match settings after joining a lobby. How the hell did this happen?");
+            }
+        }
+
+
         public void ReadServerSettings()
         {
             if (SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out ServerSettings))
@@ -400,17 +411,7 @@ namespace RavenM.Lobby
                 Plugin.logger.LogError("Failed to read server settings after joining a server. How the hell did this happen?");
             }
         }
-
-        public void ReadMatchSettings()
-        {
-            if (SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out MatchSettings))
-                DebugLoggingCache.ExportToLog(ServerSettings);
-            else
-            {
-                Plugin.logger.LogError("Failed to read match settings after joining a lobby. How the hell did this happen?");
-            }
-        }
-
+        
         public void CompletedLoading()
         {
             if (DebugLoggingCache.ShouldLog)
