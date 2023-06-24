@@ -1029,7 +1029,7 @@ namespace RavenM.Lobby
             {
                 MatchSettings.SetInstantActionMapData(InstantActionMaps.instance);
 
-                if (LoadedServerMods && MapCache.Maps != null)
+                if (MapCache.Maps != null)
                 {
                     bool validMapIndex = MatchSettings.SelectedMapIndex < MapCache.Maps.Count;
 
