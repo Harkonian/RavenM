@@ -1,4 +1,6 @@
-﻿namespace RavenM.Lobby
+﻿using RavenM.Helpers;
+
+namespace RavenM.Lobby
 {
     public class LobbyMemberData : GenericEquatable<LobbyMemberData>
     {

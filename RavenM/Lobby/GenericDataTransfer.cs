@@ -3,116 +3,152 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
 using System.Text;
+using RavenM.Helpers;
 
 namespace RavenM
 {
+    // Used to make properties not included in a data transfer.
+    [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
     public class DataTransferIgnoredAttribute : Attribute
     {
 
     }
-
-    public abstract class GenericEquatable<T> : IEquatable<T>
+    // used to make non-public properties included in the transfer.
+    [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
+    public class DataTransferIncludedAttribute : Attribute
     {
-        public bool Equals(T other)
-        {
-            if (other == null)
-                return false;
 
-            PropertyInfo[] properties = this.GetType().GetProperties();
-            foreach (PropertyInfo property in properties)
-            {
-                if (!property.CanRead) continue;
-
-                if (!property.GetValue(this).Equals(property.GetValue(other)))
-                {
-                    return false;
-                }
-            }
-
-            return true;
-        }
-
-        override public string ToString()
-        {
-            StringBuilder stringBuilder = new StringBuilder();
-
-            PropertyInfo[] properties = this.GetType().GetProperties();
-
-            stringBuilder.Append("\n");
-
-            foreach (PropertyInfo property in properties)
-            {
-                if (!property.CanRead) continue; // TODO: Consider ignoring things with the attribute here and in the equals function above.
-
-                string data = $"    {property.Name} :  {property.GetValue(this).ToString()}\n";
-
-                stringBuilder.Append(data);
-            }
-
-            return stringBuilder.ToString();
-        }
     }
 
-    internal static class GenericDataTransfer
+    public static class GenericDataTransfer
     {
+        public static string HandlePrefix(string prefix, string key)
+        {
+            return string.IsNullOrWhiteSpace(prefix) == false ? $"{prefix}.{key}" : $"{key}";
+        }
+
+        const string PrefixSeparator = ".";
+
         public delegate string ImportDataDelegate(string key);
 
         public delegate void ExportDataDelegate(string key, string value);
 
-        public static bool ImportFrom<T>(out T ret, ImportDataDelegate importDelegate) where T : new()
+        private static bool ImportPropertyFrom(out object ret, PropertyInfo propertyInfo, ImportDataDelegate importDelegate, string prefix)
+        {
+            ret = null;
+            if (!propertyInfo.CanWrite || propertyInfo.GetCustomAttribute<DataTransferIgnoredAttribute>() != null)
+            {
+                return false; 
+            }
+
+            string dataKey = HandlePrefix(prefix, propertyInfo.Name);
+
+            if (propertyInfo.PropertyType.GetInterface(nameof(TransferableNestedClass)) != null)
+            {
+                // This is pretty jank. dotnet 4.6 doesn't allow interfaces to have static methods so we have to instantiate this class and then set it again anyway.
+                TransferableNestedClass propObj = (TransferableNestedClass)Activator.CreateInstance(propertyInfo.PropertyType);
+                ret = propObj.ImportNested(importDelegate, dataKey);
+            }
+            else
+            {
+                // Pull data from the import delegate and attempt to populate this property.
+                string importedData = importDelegate(dataKey);
+                if (importedData == null) 
+                {
+                    return false; // TODO: Figure out if this should actually be a throw type scenario. It probably is and we should have an attribute for optional/non-throw.
+                }
+
+                TypeConverter typeConverter = TypeDescriptor.GetConverter(propertyInfo.PropertyType);
+                ret = typeConverter.ConvertFromString(importedData);
+            }
+            return true;
+        }
+
+        private static void ExportPropertyTo(object exportObject, PropertyInfo propertyInfo, ExportDataDelegate exportDelegate, string prefix)
+        {
+            if (!propertyInfo.CanRead || propertyInfo.GetCustomAttribute<DataTransferIgnoredAttribute>() != null)
+                return;
+
+            object dataToExport = propertyInfo.GetValue(exportObject);
+            if (dataToExport == null) 
+                return; // TODO: Again, figure out if we should throw here or not.
+            
+            string dataKey = HandlePrefix(prefix, propertyInfo.Name);
+            
+            if (propertyInfo.PropertyType.GetInterface(nameof(TransferableNestedClass)) != null)
+            {
+                ((TransferableNestedClass)dataToExport).ExportNested(exportDelegate, dataKey);
+            }
+            else
+            {
+                string dataValue = dataToExport.ToString();
+                exportDelegate(dataKey, dataValue);
+            }
+        }
+
+        public static bool ImportFrom<T>(out T ret, ImportDataDelegate importDelegate, string prefix = null) where T : new()
         {
             try
             {
                 ret = new T();
 
                 Type type = typeof(T);
-                PropertyInfo[] properties = type.GetProperties();
+                PropertyInfo[] publicProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
-                foreach (PropertyInfo property in properties)
+                foreach (PropertyInfo property in publicProperties)
                 {
-                    if (!property.CanWrite || property.GetCustomAttribute<DataTransferIgnoredAttribute>() != null) continue;
+                    if (ImportPropertyFrom(out object propValue, property, importDelegate, prefix))
+                    {
+                        property.SetValue(ret, propValue);
+                    }
+                }
+                
+                PropertyInfo[] privateProperties = type.GetProperties(BindingFlags.NonPublic| BindingFlags.Instance);
 
-                    string dataKey = property.Name;
+                foreach (PropertyInfo property in privateProperties)
+                {
+                    if (property.GetCustomAttribute<DataTransferIncludedAttribute>() == null)
+                        continue;
 
-                    // Pull data from the import delegate and attempt to populate this property.
-
-                    string lobbyData = importDelegate(dataKey);
-                    if (lobbyData == null) continue; // TODO: Figure out if this should actually be a throw type scenario. It probably is and we should have an attribute for optional/non-throw.
-
-                    TypeConverter typeConverter = TypeDescriptor.GetConverter(property.PropertyType);
-                    object propValue = typeConverter.ConvertFromString(lobbyData);
-                    property.SetValue(ret, propValue);
+                    if (ImportPropertyFrom(out object propValue, property, importDelegate, prefix))
+                    {
+                        property.SetValue(ret, propValue);
+                    }
                 }
 
                 return true;
-
             }
             catch (Exception e)
             {
+                // TODO: This try catch block should probably be moved to a separate no-throw version of this function. In some cases we'd definitely rather not throw but others we probably should.
                 Plugin.logger.LogError(e);
                 ret = default(T);
                 return false;
             }
         }
 
-        public static void ExportTo<T>(T classToExport, ExportDataDelegate exportDelegate)
+        public static void ExportTo<T>(T classToExport, ExportDataDelegate exportDelegate, string prefix = null)
         {
             if (classToExport == null) throw new ArgumentNullException(nameof(classToExport));
 
             Type type = typeof(T);
-            PropertyInfo[] properties = type.GetProperties();
+            PropertyInfo[] publicProperties = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
-            foreach (PropertyInfo property in properties)
+            foreach (PropertyInfo property in publicProperties)
             {
-                if (!property.CanRead || property.GetCustomAttribute<DataTransferIgnoredAttribute>() != null) continue;
-
-                object dataToExport = property.GetValue(classToExport);
-                if (dataToExport == null) continue; // TODO: Again, figure out if we should throw here or not.
-
-                string dataKey = property.Name;
-                exportDelegate(dataKey, dataToExport.ToString());
+                ExportPropertyTo(classToExport, property, exportDelegate, prefix);
             }
+            
+            PropertyInfo[] privateProperties = type.GetProperties(BindingFlags.NonPublic | BindingFlags.Instance);
 
+
+            foreach (PropertyInfo property in privateProperties)
+            {
+                if (property.GetCustomAttribute<DataTransferIncludedAttribute>() == null)
+                    continue;
+
+                ExportPropertyTo(classToExport, property, exportDelegate, prefix);
+            }
         }
     }
 

@@ -7,7 +7,7 @@ using UnityEngine;
 namespace RavenM.Lobby
 {
     // Once all mods have been loaded in this data is cached once rather than repeatedly using reflection to grab it every frame.
-    public class CachedMapData
+    public class CachedGameData
     {
         List<InstantActionMaps.MapEntry> maps = null;
 
@@ -26,12 +26,27 @@ namespace RavenM.Lobby
             }
         }
 
-        public Dictionary<string, InstantActionMaps.MapEntry> CustomMapEntries { get; private set; } = new Dictionary<string, InstantActionMaps.MapEntry>();
+        public Dictionary<string, InstantActionMaps.MapEntry> CustomMapEntries { get; private set; } = new();
 
-        public CachedMapData(InstantActionMaps instantActionMaps)
+        // These will contain all prefabs, both from default content and mods and will be our definitive list to use the index on.
+        public List<GameObject> TurretPrefabs { get; private set; } = new();
+
+        public List<GameObject> VehiclePrefabs { get; private set; } = new();
+
+
+        public CachedGameData(InstantActionMaps instantActionMaps)
         {
             PopulateCustomMaps();
             UpdateCacheFromIAM(instantActionMaps);
+            
+            VehiclePrefabs.AddRange(ActorManager.instance.defaultVehiclePrefabs);
+            VehiclePrefabs.AddRange(ModManager.AllVehiclePrefabs());
+            VehiclePrefabs.Sort((x, y) => x.name.CompareTo(y.name));
+
+            
+            TurretPrefabs.AddRange(ActorManager.instance.defaultTurretPrefabs);
+            TurretPrefabs.AddRange(ModManager.AllTurretPrefabs());
+            TurretPrefabs.Sort((x, y) => x.name.CompareTo(y.name));
         }
 
         public void UpdateCacheFromIAM(InstantActionMaps mapsInstance)

@@ -43,30 +43,25 @@ namespace RavenM.Lobby
 
         private static HashSet<Type> cachedTypes = new HashSet<Type>();
 
-        private static string HandlePrefix(string prefix, string key)
-        {
-            return string.IsNullOrWhiteSpace(prefix) ? $"{prefix}.{key}" : $"{key}";
-        }
-
         public static bool ImportFromLobbyData<T>(CSteamID lobbyID, out T ret, float staleSecondsAllowed = DefaultStaleSeconds, string dataPrefix = null) where T : IEquatable<T>, new()
         {
             return GenericDataTransfer.ImportFrom(
                 out ret,
-                (datakey) => SteamMatchmaking.GetLobbyData(lobbyID, HandlePrefix(dataPrefix, datakey)));
+                (datakey) => SteamMatchmaking.GetLobbyData(lobbyID, GenericDataTransfer.HandlePrefix(dataPrefix, datakey)));
         }
 
         public static void ExportToLobbyData<T>(CSteamID lobbyID, T classToExport, float staleSecondsAllowed = DefaultStaleSeconds, string dataPrefix = null) where T : IEquatable<T>, new()
         {
             GenericDataTransfer.ExportTo(
                 classToExport,
-                (dataKey, dataValue) => SteamMatchmaking.SetLobbyData(lobbyID, HandlePrefix(dataPrefix, dataKey), dataValue));
+                (dataKey, dataValue) => SteamMatchmaking.SetLobbyData(lobbyID, GenericDataTransfer.HandlePrefix(dataPrefix, dataKey), dataValue));
         }
 
         public static bool ImportFromMemberData<T>(CSteamID lobbyID, CSteamID memberID, out T ret, float staleSecondsAllowed = DefaultStaleSeconds, string dataPrefix = null) where T : IEquatable<T>, new()
         {
             return GenericDataTransfer.ImportFrom(
                 out ret,
-                (datakey) => SteamMatchmaking.GetLobbyMemberData(lobbyID, memberID, HandlePrefix(dataPrefix, datakey)));
+                (datakey) => SteamMatchmaking.GetLobbyMemberData(lobbyID, memberID, GenericDataTransfer.HandlePrefix(dataPrefix, datakey)));
         }
 
         public static void ExportToMemberData<T>(CSteamID lobbyID, T classToExport, float staleSecondsAllowed = DefaultStaleSeconds, string dataPrefix = null) where T : IEquatable<T>, new()
@@ -75,7 +70,7 @@ namespace RavenM.Lobby
                 classToExport,
                 (dataKey, dataValue) =>
                 {
-                    SteamMatchmaking.SetLobbyMemberData(lobbyID, HandlePrefix(dataPrefix, dataKey), dataValue);
+                    SteamMatchmaking.SetLobbyMemberData(lobbyID, GenericDataTransfer.HandlePrefix(dataPrefix, dataKey), dataValue);
                 });
         }
     }
