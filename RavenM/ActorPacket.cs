@@ -50,6 +50,10 @@ namespace RavenM
         public int VehicleId;
 
         public int Seat;
+
+        public int MovingPlatformVehicleId;
+
+        public float TargetDetectionProgress;
     }
 
     public enum ActorStateFlags

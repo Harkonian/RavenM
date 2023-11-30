@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using Ravenfield.Mutator.Configuration;
 using SimpleJSON;
 using System.Globalization;
+using Ravenfield.Trigger;
 
 namespace RavenM
 {
@@ -113,11 +114,11 @@ namespace RavenM
             {
                 if (!vehicle.TryGetComponent(out PrefabTag _) && !Array.Exists(ignore, x => x == vehicle))
                 {
-                    Plugin.logger.LogInfo($"Detected map vehicle with name: {vehicle.name}, and from map: {map.name}.");
+                    Plugin.logger.LogInfo($"Detected map vehicle with name: {vehicle.name}, and from map: {map.metaData.displayName}.");
 
                     var tag = vehicle.gameObject.AddComponent<PrefabTag>();
                     tag.NameHash = vehicle.name.GetHashCode();
-                    tag.Mod = (ulong)map.name.GetHashCode();
+                    tag.Mod = (ulong)map.metaData.displayName.GetHashCode();
                     IngameNetManager.PrefabCache[new Tuple<int, ulong>(tag.NameHash, tag.Mod)] = vehicle.gameObject;
                 }
             }
@@ -126,11 +127,11 @@ namespace RavenM
             {
                 if (!projectile.TryGetComponent(out PrefabTag _))
                 {
-                    Plugin.logger.LogInfo($"Detected map projectile with name: {projectile.name}, and from map: {map.name}.");
+                    Plugin.logger.LogInfo($"Detected map projectile with name: {projectile.name}, and from map: {map.metaData.displayName}.");
 
                     var tag = projectile.gameObject.AddComponent<PrefabTag>();
                     tag.NameHash = projectile.name.GetHashCode();
-                    tag.Mod = (ulong)map.name.GetHashCode();
+                    tag.Mod = (ulong)map.metaData.displayName.GetHashCode();
                     IngameNetManager.PrefabCache[new Tuple<int, ulong>(tag.NameHash, tag.Mod)] = projectile.gameObject;
                 }
             }
@@ -141,9 +142,9 @@ namespace RavenM
 
                 if (!prefab.TryGetComponent(out PrefabTag _))
                 {
-                    Plugin.logger.LogInfo($"Detected map destructible with name: {prefab.name}, and from map: {map.name}.");
+                    Plugin.logger.LogInfo($"Detected map destructible with name: {prefab.name}, and from map: {map.metaData.displayName}.");
 
-                    IngameNetManager.TagPrefab(prefab, (ulong)map.name.GetHashCode());
+                    IngameNetManager.TagPrefab(prefab, (ulong)map.metaData.displayName.GetHashCode());
                 }
             }
 
@@ -168,6 +169,19 @@ namespace RavenM
                 IngameNetManager.instance.ClientDestructibles[id] = root;
 
                 Plugin.logger.LogInfo($"Registered new destructible root with name: {root.name} and id: {id}");
+            }
+
+            IngameNetManager.instance.MapWeapons.Clear();
+            foreach (var triggerEquipWeapon in Resources.FindObjectsOfTypeAll<TriggerEquipWeapon>())
+            {
+                if (triggerEquipWeapon.weaponType == TriggerEquipWeapon.WeaponType.FromWeaponEntry
+                    && triggerEquipWeapon.weaponEntry != null
+                    && !WeaponManager.instance.allWeapons.Contains(triggerEquipWeapon.weaponEntry))
+                {
+                    var entry = triggerEquipWeapon.weaponEntry;
+                    Plugin.logger.LogInfo($"Detected map weapon with name: {entry.name}, and from map: {map.metaData.displayName}.");
+                    IngameNetManager.instance.MapWeapons.Add(entry);
+                }
             }
         }
 
@@ -694,7 +708,7 @@ namespace RavenM
 
                 if (InstantActionMaps.instance.mapDropdown.value == customMapOptionIndex)
                 {
-                    SetLobbyDataDedup("customMap", entries[customMapOptionIndex].name);
+                    SetLobbyDataDedup("customMap", entries[customMapOptionIndex].metaData.displayName);
                 }
 
                 for (int i = 0; i < 2; i++)
@@ -755,7 +769,7 @@ namespace RavenM
                 {
                     var mutator = ModManager.instance.loadedMutators.ElementAt(i);
 
-                    if (!mutator.isEnabled)
+                    if (!GameManager.instance.gameInfo.activeMutators.Contains(mutator))
                         continue;
 
                     int id = i;
@@ -798,37 +812,14 @@ namespace RavenM
                     {
                         string mapName = SteamMatchmaking.GetLobbyData(ActualLobbyID, "customMap");
 
-                        if (InstantActionMaps.instance.mapDropdown.value != customMapOptionIndex || entries[customMapOptionIndex].name != mapName)
+                        if (InstantActionMaps.instance.mapDropdown.value != customMapOptionIndex || entries[customMapOptionIndex].metaData.displayName != mapName)
                         {
-                            foreach (var mod in ModManager.instance.GetActiveMods())
+                            foreach (Transform item in InstantActionMaps.instance.customMapsBrowser.contentPanel) 
                             {
-                                // TODO: What scenario is this possible?
-                                if (mod == null || mod.content == null)
-                                    continue;
-                                
-                                foreach (var map in mod.content.GetMaps())
+                                var entry = item.gameObject.GetComponent<CustomMapEntry>();
+                                if (entry.entry.metaData.displayName == mapName)
                                 {
-                                    string currentName = string.Empty;
-                                    string[] parts = map.Name.Split('.');
-                                    for (int i = 0; i < parts.Length - 1; i++)
-                                    {
-                                        currentName += parts[i];
-                                    }
-                                    if (currentName == mapName)
-                                    {
-                                        InstantActionMaps.MapEntry entry = new InstantActionMaps.MapEntry
-                                        {
-                                            name = currentName,
-                                            sceneName = map.FullName,
-                                            isCustomMap = true,
-                                            hasLoadedMetaData = true,
-                                            image = mod.content.HasIconImage()
-                                                    ? Sprite.Create(mod.iconTexture, new Rect(0f, 0f, mod.iconTexture.width, mod.iconTexture.height), Vector2.zero, 100f)
-                                                    : null,
-                                            suggestedBots = 0,
-                                        };
-                                        InstantActionMaps.SelectedCustomMapEntry(entry);
-                                    }
+                                    entry.Select();
                                 }
                             }
                         }
@@ -925,8 +916,7 @@ namespace RavenM
                 }
 
                 string[] enabledMutators = SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, "mutators").Split(',');
-                foreach (var mutator in ModManager.instance.loadedMutators)
-                    mutator.isEnabled = false;
+                GameManager.instance.gameInfo.activeMutators.Clear();
                 foreach (var mutatorStr in enabledMutators)
                 {
                     if (mutatorStr == string.Empty)
@@ -940,7 +930,7 @@ namespace RavenM
 
                         if (id == mutatorIndex)
                         {
-                            mutator.isEnabled = true;
+                            GameManager.instance.gameInfo.activeMutators.Add(mutator);
 
                             string configStr = SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, mutatorIndex + "config");
 
