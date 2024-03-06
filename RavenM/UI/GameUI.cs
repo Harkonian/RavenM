@@ -1,11 +1,12 @@
-﻿using HarmonyLib;
-using Steamworks;
-using System;
-using System.Linq;
+﻿using System.Linq;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+
+using HarmonyLib;
+using RavenM.Lobby;
+using Steamworks;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -114,10 +115,10 @@ namespace RavenM.UI
         {
             if (instance == null)
                 return;
-            bool parsedValue = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, "nameTags"),out bool nameTagsEnabled);
+            bool parsedValue = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.LobbyID, "nameTags"),out bool nameTagsEnabled);
             if (parsedValue)
                 LobbySystem.instance.nameTagsEnabled = nameTagsEnabled;
-            bool parsedValue2 = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.ActualLobbyID, "nameTagsForTeamOnly"), out bool nameTagsTeamOnlyEnabled);
+            bool parsedValue2 = bool.TryParse(SteamMatchmaking.GetLobbyData(LobbySystem.instance.LobbyID, "nameTagsForTeamOnly"), out bool nameTagsTeamOnlyEnabled);
             if (parsedValue2)
                 LobbySystem.instance.nameTagsForTeamOnly = nameTagsTeamOnlyEnabled;
             //LobbySystem.instance.nameTagsForTeamOnly;

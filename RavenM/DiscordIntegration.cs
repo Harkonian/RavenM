@@ -1,10 +1,12 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Runtime.InteropServices;
+
 using RavenM.DiscordGameSDK;
+using RavenM.Lobby;
 using Steamworks;
 using UnityEngine;
-using System.Runtime.InteropServices;
 
 namespace RavenM
 {
@@ -89,10 +91,7 @@ namespace RavenM
                     GameManager.ReturnToMenu();
                 }
                 
-                SteamMatchmaking.JoinLobby(LobbyID);
-                LobbySystem.instance.InLobby = true;
-                LobbySystem.instance.IsLobbyOwner = false;
-                LobbySystem.instance.LobbyDataReady = false;
+                LobbySystem.instance.AttemptToJoinLobby(LobbyID);
             };
             
             _activityManager.OnActivityJoinRequest += (ref User user) =>
@@ -147,18 +146,18 @@ namespace RavenM
             }
             else if (_isInLobby)
             {
-                int currentLobbyMembers = SteamMatchmaking.GetNumLobbyMembers(LobbySystem.instance.ActualLobbyID);
-                int currentLobbyMemberCap = SteamMatchmaking.GetLobbyMemberLimit(LobbySystem.instance.ActualLobbyID);
+                int currentLobbyMembers = SteamMatchmaking.GetNumLobbyMembers(LobbySystem.instance.LobbyID);
+                int currentLobbyMemberCap = SteamMatchmaking.GetLobbyMemberLimit(LobbySystem.instance.LobbyID);
 
                 if (!_isInGame) // Waiting in Lobby
                 {
                     var dropdown = InstantActionMaps.instance.gameModeDropdown;
                     _gameMode = dropdown.options[dropdown.value].text;
-                    UpdateActivity(Discord, Activities.InLobby, false ,_gameMode, currentLobbyMembers, currentLobbyMemberCap, LobbySystem.instance.ActualLobbyID.ToString());
+                    UpdateActivity(Discord, Activities.InLobby, false ,_gameMode, currentLobbyMembers, currentLobbyMemberCap, LobbySystem.instance.LobbyID.ToString());
                 }
                 else // Playing in a Lobby
                 {
-                    UpdateActivity(Discord, Activities.InLobby, true ,_gameMode, currentLobbyMembers, currentLobbyMemberCap, LobbySystem.instance.ActualLobbyID.ToString());
+                    UpdateActivity(Discord, Activities.InLobby, true ,_gameMode, currentLobbyMembers, currentLobbyMemberCap, LobbySystem.instance.LobbyID.ToString());
                 }
             }
             else // Left the lobby

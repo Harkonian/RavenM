@@ -1,20 +1,11 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
-using HarmonyLib;
-using Steamworks;
-using System.Collections;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
-using System.Reflection;
-using System.Reflection.Emit;
-using System.Runtime.InteropServices;
+using System.Text;
+
+using Steamworks;
 using UnityEngine;
-using Ravenfield.SpecOps;
 using RavenM.Commands;
+using RavenM.Lobby;
 
 namespace RavenM
 {
@@ -153,7 +144,7 @@ namespace RavenM
         {
             ulong steamId = pCallback.m_ulSteamIDUser;
             var buf = new byte[4096];
-            int len = SteamMatchmaking.GetLobbyChatEntry(LobbySystem.instance.ActualLobbyID, (int)pCallback.m_iChatID, out CSteamID user, buf, buf.Length, out EChatEntryType chatType);
+            int len = SteamMatchmaking.GetLobbyChatEntry(LobbySystem.instance.LobbyID, (int)pCallback.m_iChatID, out CSteamID user, buf, buf.Length, out EChatEntryType chatType);
             string chat = DecodeLobbyChat(buf, len);
 
             if (steamId != SteamId.m_SteamID)
@@ -181,7 +172,7 @@ namespace RavenM
                 if (LobbySystem.instance.OwnerID == id)
                 {
                     LobbySystem.instance.NotificationText = "Lobby closed by host.";
-                    SteamMatchmaking.LeaveLobby(LobbySystem.instance.ActualLobbyID);
+                    SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
                 }
             }
             else
@@ -391,7 +382,7 @@ namespace RavenM
                         if (member == SteamId)
                         {
                             LobbySystem.instance.NotificationText = "You were kicked from the lobby! You can no longer join this lobby.";
-                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.ActualLobbyID);
+                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
                         }
                         else if (!LobbySystem.instance.CurrentKickedMembers.Contains(member))
                         {
@@ -511,7 +502,7 @@ namespace RavenM
                         if (member == SteamId)
                         {
                             LobbySystem.instance.NotificationText = "You were kicked from the lobby! You can no longer join this lobby.";
-                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.ActualLobbyID);
+                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
                         }
                         else if (!LobbySystem.instance.CurrentKickedMembers.Contains(member))
                         {
@@ -553,7 +544,7 @@ namespace RavenM
         public void SendLobbyChat(string message)
         {
             var bytes = Encoding.UTF8.GetBytes(message);
-            SteamMatchmaking.SendLobbyChatMsg(LobbySystem.instance.ActualLobbyID, bytes, bytes.Length);
+            SteamMatchmaking.SendLobbyChatMsg(LobbySystem.instance.LobbyID, bytes, bytes.Length);
         }
 
         public string DecodeLobbyChat(byte[] bytes, int len)

@@ -1,11 +1,11 @@
-﻿using Lua;
-using Steamworks;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+
+using Lua;
+using RavenM.Lobby;
+using Steamworks;
 using UnityEngine;
 
 namespace RavenM.RSPatch.Wrapper
@@ -17,13 +17,13 @@ namespace RavenM.RSPatch.Wrapper
         [Getter]
         public static string[] GetLobbyMembers()
         {
-            int numPlayers = SteamMatchmaking.GetNumLobbyMembers(LobbySystem.instance.ActualLobbyID);
+            int numPlayers = SteamMatchmaking.GetNumLobbyMembers(LobbySystem.instance.LobbyID);
 
             string[] members = new string[numPlayers];
 
             for (int i = 0; i < numPlayers; i++)
             {
-                members[i] = SteamFriends.GetFriendPersonaName(SteamMatchmaking.GetLobbyMemberByIndex(LobbySystem.instance.ActualLobbyID, i));
+                members[i] = SteamFriends.GetFriendPersonaName(SteamMatchmaking.GetLobbyMemberByIndex(LobbySystem.instance.LobbyID, i));
             }
             return members;
         }

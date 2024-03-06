@@ -1,12 +1,15 @@
 ﻿using System;
-using BepInEx;
-using BepInEx.Configuration;
-using HarmonyLib;
-using Steamworks;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+
+using BepInEx;
+using BepInEx.Configuration;
+using HarmonyLib;
+using RavenM.Lobby;
+using Steamworks;
 using UnityEngine;
+
 namespace RavenM
 {
     /// <summary>
@@ -180,10 +183,7 @@ namespace RavenM
         {
             JoinedLobbyFromArgument = true;
             CSteamID lobbyId = new CSteamID(ulong.Parse(Arguments["-ravenm-lobby"]));
-            SteamMatchmaking.JoinLobby(lobbyId);
-            LobbySystem.instance.InLobby = true;
-            LobbySystem.instance.IsLobbyOwner = false;
-            LobbySystem.instance.LobbyDataReady = false;
+            LobbySystem.instance.AttemptToJoinLobby(lobbyId);
         }
     }
 }
