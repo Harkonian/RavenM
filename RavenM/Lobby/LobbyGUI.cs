@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Reflection;
 
@@ -91,8 +92,7 @@ public class LobbyGUI
         Join,
         DirectConnect,
         Browse,
-        ViewLobbyDetails,
-        SubscriptionWarning
+        ViewLobbyDetails
     }
 
     private readonly Stack<MenuState> GUIStack = new();
@@ -271,13 +271,11 @@ public class LobbyGUI
     private void DrawDirectConnectMenu(LobbySystem system)
     {
         CreateLabelSection("DIRECT CONNECT");
-
         GUILayout.Space(10f);
 
         CreateLabelSection("LOBBY ID");
 
         DirectJoinLobbyString = GUILayout.TextField(DirectJoinLobbyString);
-
         GUILayout.Space(15f);
 
         if (GUILayout.Button("START"))
@@ -353,8 +351,7 @@ public class LobbyGUI
         if (CurrentServerListing == null)
         {
             Plugin.logger.LogError("Managed to view a lobby via browse without first having fully loaded the lobby listing. Attempting to retrieve data now.");
-            CurrentServerListing = system.ImportFixedServerSettings(SelectedLobbyID);
-            if (CurrentServerListing == null)
+            if (!SteamLobbyDataTransfer.ImportFromLobbyData(SelectedLobbyID, out CurrentServerListing))
             {
                 string errMessage = $"Could not retrieve lobby listing data for lobby {SelectedLobbyID}. Returning to browse.";
                 NotificationText = errMessage;
@@ -386,30 +383,24 @@ public class LobbyGUI
         var modCount = modList != string.Empty ? modList.Split(',').Length : 0;
         GUILayout.Label($"MODS: {modCount}");
 
-        // TODO: Query all this data at once to avoid all these calls to GetLobbyData interspersed with the display logic.
-        GUILayout.Label($"BOTS: {SteamMatchmaking.GetLobbyData(system.LobbyID, "botNumberField")}");
-
-        var map = SteamMatchmaking.GetLobbyData(system.LobbyID, "customMap");
-        map = map != string.Empty ? map : "Default";
-        GUILayout.Label($"MAP: {map}");
-
-        var status = SteamMatchmaking.GetLobbyData(system.LobbyID, "started") == "yes" ? ColorBank.CreateColoredLabelString("In-game", ColorBank.FullyLoaded) : "Configuring";
-        GUILayout.Label($"STATUS: {status}");
-
         GUILayout.Space(10f);
 
-        if (Plugin.BuildGUID != SteamMatchmaking.GetLobbyData(system.LobbyID, "build_id"))
+        if (!SteamLobbyDataTransfer.ImportFromLobbyData(SelectedLobbyID, out MatchListingInfo matchListing) || Plugin.BuildGUID != CurrentServerListing.BuildID)
         {
             GUILayout.Label(ColorBank.CreateColoredLabelString("This lobby is running on a different version of RavenM!", Color.red));
         }                
         else
         {
+            GUILayout.Label($"BOTS: {matchListing.BotNumberText}");
+            GUILayout.Label($"MAP: {matchListing.SelectedMapName}");
+
+            var status = matchListing.MatchStarted ? ColorBank.CreateColoredLabelString("In-game", ColorBank.FullyLoaded) : "Configuring";
+            GUILayout.Label($"STATUS: {status}");
+
             if (GUILayout.Button("JOIN"))
             {
                 system.AttemptToJoinLobby(SelectedLobbyID);
             }
-            
-            // TODO: Perfect place for that "match my workshop subscribed items to the host" pop-up.
         }
 
         GUILayout.Space(3f);
@@ -561,6 +552,26 @@ public class LobbyGUI
 
             GUILayout.Space(15f);
 
+            if (!system.IsLobbyOwner)
+            {
+                GUILayout.Space(5f);
+                if (GUILayout.Button(ColorBank.CreateColoredLabelString("MATCH STEAM SUBSCRIBTIONS", Color.yellow)))
+                {
+                    system.MatchSteamModSubscriptions();
+                }
+
+                GUILayout.Space(5f);
+                GUILayout.Space(15f);
+            }
+
+
+            if (GUILayout.Button(ColorBank.CreateColoredLabelString("TEST", Color.cyan)))
+            {
+                TestFunction(system);
+            }
+
+            GUILayout.Space(15f);
+
             CreateLabelSection("MEMBERS:");
 
             for (int i = 0; i < len; i++)
@@ -676,5 +687,37 @@ public class LobbyGUI
                 KickPrompt = CSteamID.Nil;
             }
         }
+    }
+
+    private void TestFunction(LobbySystem lobbySystem)
+    {
+        LoggingHelper.LogMarker();
+        SteamLobbyDataTransfer.ImportFromLobbyData(lobbySystem.LobbyID, out MatchSettings temp);
+        if (temp == null)
+        {
+            return;
+        }
+
+        string result = "Imported From Steam:\n";
+        DataTransfer.GenericDataTransfer.ExportTo(temp, (key, value) => result += $"{key} = {value}\n");
+        LoggingHelper.LogMarker(result);
+
+        string weaponString = "";
+        foreach (int weaponIndex in temp.Eagle.WeaponIndices)
+        {
+            if (weaponIndex < lobbySystem.Cache.Weapons.Count)
+            {
+                var weapon = lobbySystem.Cache.Weapons[weaponIndex];
+                weaponString += $"{weapon.name}\n";
+            }
+            else
+            {
+                LoggingHelper.LogMarker($"Attempting to add weapon {weaponIndex} but only have {lobbySystem.Cache.Weapons.Count} in the cache");
+            }
+        }
+
+        LoggingHelper.LogMarker(weaponString);
+
+
     }
 }

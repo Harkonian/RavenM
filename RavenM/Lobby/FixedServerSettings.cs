@@ -6,10 +6,11 @@ namespace RavenM.Lobby;
 public class FixedServerSettings
 {
     public const uint LobbyMemberMin = 2;
-    public const uint LobbyMemberMax = 250; //Steam lobby max. Is there no way to get this from the Steam apis themselves rather than magic numbering this?
+    public const uint LobbyMemberMax = 250; //Steam lobby max. TODO: Is there no way to get this from the Steam APIs themselves rather than magic numbering this?
 
     private uint lobbyMemberCap = LobbyMemberMax;
 
+    // Friends only is a steam lobby setting which does exactly what it says on the tin and also hides the server from the browse list regardless of the other setting.
     public bool FriendsOnlyLobby { get; set; } = false;
 
     // A value indicating if this lobby should appear in the browse UI. True will let it show up, false will not.
@@ -35,7 +36,7 @@ public class FixedServerSettings
 
     public bool TeamOnlyNameTags { get; set; } = false;
 
-    public string BuildID { get; set; } = Plugin.BuildGUID;
+    public string BuildID { get; set; }
 
     public FixedServerSettings() { }
 }
