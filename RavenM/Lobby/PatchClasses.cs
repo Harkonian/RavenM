@@ -26,33 +26,38 @@ public class OnStartPatch
 {
     static bool Prefix()
     {
-        if (LobbySystem.instance.InLobby && !LobbySystem.instance.IsLobbyOwner && !LobbySystem.instance.ReadyToPlay)
+        LobbySystem lobbySystem = LobbySystem.instance;
+
+        if (lobbySystem.InLobby && !lobbySystem.IsLobbyOwner && !lobbySystem.ReadyToPlay)
             return false;
         OptionsPatch.SetConfigValues(false);
 
         // Only start if all members are ready.
-        if (LobbySystem.instance.LobbyDataReady && LobbySystem.instance.IsLobbyOwner)
+        if (lobbySystem.LobbyDataReady && lobbySystem.IsLobbyOwner)
         {
-            foreach (var memberId in LobbySystem.instance.GetLobbyMembers())
+            foreach (var memberId in lobbySystem.GetLobbyMembers())
             {
-                if (SteamMatchmaking.GetLobbyMemberData(LobbySystem.instance.LobbyID, memberId, "loaded") != "yes")
+                SteamLobbyDataTransfer.ImportFromMemberData(lobbySystem.LobbyID, memberId, out LobbyMemberData memberData);
+
+                if (memberData.Loaded == false)
                 {
-                    if (!LobbySystem.instance.HasCommittedToStart) {
-                        LobbySystem.instance.IntentionToStart = true;
+                    if (!lobbySystem.HasCommittedToStart) 
+                    {
+                        lobbySystem.IntentionToStart = true;
                         return false;
                     }
                 }
             }
-            LobbySystem.instance.HasCommittedToStart = false;
+            lobbySystem.HasCommittedToStart = false;
         }
 
-        if (LobbySystem.instance.IsLobbyOwner)
+        if (lobbySystem.IsLobbyOwner)
         {
             IngameNetManager.instance.OpenRelay();
-            LobbySystem.instance.HostStartedMatch();
+            lobbySystem.HostStartedMatch();
         }
 
-        LobbySystem.instance.ReadyToPlay = false;
+        lobbySystem.ReadyToPlay = false;
         return true;
     }
 }
@@ -62,20 +67,24 @@ public class FirstDeployPatch
 {
     static bool Prefix()
     {
-        if (LobbySystem.instance.InLobby)
+        LobbySystem lobbySystem = LobbySystem.instance;
+
+        if (lobbySystem.InLobby)
         {
             // Ignore players who joined mid-game.
             if ((bool)typeof(LoadoutUi).GetField("hasAcceptedLoadoutOnce", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(LoadoutUi.instance))
                 return true;
 
             // Wait for everyone to load in first.
-            foreach (var memberId in LobbySystem.instance.GetLobbyMembers())
+            foreach (var memberId in lobbySystem.GetLobbyMembers())
             {
-                if (SteamMatchmaking.GetLobbyMemberData(LobbySystem.instance.LobbyID, memberId, "ready") != "yes")
+                if (!SteamLobbyDataTransfer.ImportFromMemberData(lobbySystem.LobbyID, memberId, out LobbyMemberData memberData) || memberData.Ready == false)
                 {
                     // Ignore players that just joined and are loading mods.
-                    if (SteamMatchmaking.GetLobbyMemberData(LobbySystem.instance.LobbyID, memberId, "loaded") != "yes")
+                    if (memberData != null && memberData.Loaded == false)
+                    {
                         continue;
+                    }
 
                     return false;
                 }
@@ -182,15 +191,17 @@ public class FinalizeStartPatch
 
     static void Postfix()
     {
-        if (!LobbySystem.instance.LobbyDataReady)
+        LobbySystem lobbySystem = LobbySystem.instance;
+        if (!lobbySystem.LobbyDataReady)
             return;
 
-        if (LobbySystem.instance.IsLobbyOwner)
+        if (lobbySystem.IsLobbyOwner)
             IngameNetManager.instance.StartAsServer();
         else
-            IngameNetManager.instance.StartAsClient(LobbySystem.instance.OwnerID); 
+            IngameNetManager.instance.StartAsClient(lobbySystem.OwnerID);
 
-        SteamMatchmaking.SetLobbyMemberData(LobbySystem.instance.LobbyID, "ready", "yes");
+        lobbySystem.localMemberData.Ready = true;
+        lobbySystem.Cache.ResetMaps(); // We've loaded into a level, the old map UI we have cached is invalid, remove it.
     }
 }
 
@@ -238,16 +249,16 @@ public class AfterModsLoadedPatch
 // TODO: Why does this class exist? Why do we need to override the steam matchmaking classes?
 //       Is this just because we might leave the lobby in a few ways? As in from the chat manager or the normal lobby system?
 //       If so this is extra wonky. Why not just roll this functionality into our lobby class with a LeaveLobby call?
-[HarmonyPatch(typeof(SteamMatchmaking), nameof(SteamMatchmaking.LeaveLobby))]
-public class OnLobbyLeavePatch
-{
-    static void Postfix()
-    {
-        LobbySystem.instance.ResetState();
+//[HarmonyPatch(typeof(SteamMatchmaking), nameof(SteamMatchmaking.LeaveLobby))]
+//public class OnLobbyLeavePatch
+//{
+//    static void Postfix()
+//    {
+//        LobbySystem.instance.ResetState();
 
-        ChatManager.instance.ResetChat();
-    }
-}
+//        ChatManager.instance.ResetChat();
+//    }
+//}
 
 [HarmonyPatch(typeof(GameManager), nameof(GameManager.ReturnToMenu))]
 public class LeaveOnEndGame
@@ -259,20 +270,21 @@ public class LeaveOnEndGame
 
         // Exit the lobby if we actually want to leave.
         if (new StackFrame(2).GetMethod().Name == "Menu")
-            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
+            LobbySystem.instance.BeginLeavingLobby();
     }
 
     static void Postfix()
     {
-        if (!LobbySystem.instance.InLobby)
+        LobbySystem lobbySystem = LobbySystem.instance;
+        if (!lobbySystem.InLobby)
             return;
 
-        if (LobbySystem.instance.IsLobbyOwner)
+        if (lobbySystem.IsLobbyOwner)
         {
-            LobbySystem.instance.HostEndedMatch();
+            lobbySystem.HostEndedMatch();
         }
 
-        SteamMatchmaking.SetLobbyMemberData(LobbySystem.instance.LobbyID, "ready", "no");
+        lobbySystem.localMemberData.Ready = false;
     }
 }
 

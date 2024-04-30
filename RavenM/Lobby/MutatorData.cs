@@ -1,6 +1,7 @@
-﻿using RavenM.Lobby.DataTransfer;
+﻿using System.Collections.Generic;
+
+using RavenM.Lobby.DataTransfer;
 using SimpleJSON;
-using System.Collections.Generic;
 
 namespace RavenM.Lobby;
 
@@ -31,8 +32,9 @@ internal class MutatorData : GenericNested<MutatorData>
                 foreach (var setting in config)
                 {
                     JSONNode node = new JSONString(setting);
-                    serializedConfigs.Add(node);
+                    serializedConfig.Add(node);
                 }
+
                 serializedConfigs.Add(serializedConfig);
             }
 
@@ -49,9 +51,13 @@ internal class MutatorData : GenericNested<MutatorData>
             {
                 List<string> settingStrings = new();
                 JSONArray serializedConfg = jsonConfigs.Value.AsArray;
-                foreach (var serializedSetting in serializedConfg)
+                if (serializedConfg != null)
                 {
-                    settingStrings.Add(serializedSetting.Value.ToString());
+                    foreach (var serializedSetting in serializedConfg)
+                    {
+                        string finalSettingString = serializedSetting.Value.Value;
+                        settingStrings.Add(finalSettingString);
+                    }
                 }
                 MutatorConfigs.Add(settingStrings);
             }
@@ -67,7 +73,6 @@ internal class MutatorData : GenericNested<MutatorData>
     {
         EnabledMutators.Clear();
         MutatorConfigs.Clear();
-        string allConfigs = "";
         for (int i = 0; i < modManager.loadedMutators.Count; i++)
         {
             var mutator = modManager.loadedMutators[i];
@@ -86,12 +91,8 @@ internal class MutatorData : GenericNested<MutatorData>
                 combinedConfig += $"{serializedValue}\n";
             }
 
-            allConfigs += $"{combinedConfig}\n\n\n";
-
             MutatorConfigs.Add(configFieldStrings);
         }
-
-        LoggingHelper.LogMarker(allConfigs);
     }
 
     public void SetToLoadedMutators(ModManager modManager)

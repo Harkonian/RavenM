@@ -2,7 +2,7 @@
 using System.ComponentModel;
 using System.Reflection;
 
-namespace RavenM.Lobby.DataTransfer; 
+namespace RavenM.Lobby.DataTransfer;
 
 
 /// <summary>
@@ -64,8 +64,17 @@ public static class GenericDataTransfer
                 return false; // TODO-Throw? Figure out if this should actually be a throw type scenario. It probably is and we should have an attribute for optional/non-throw.
             }
 
-            TypeConverter typeConverter = TypeDescriptor.GetConverter(propertyInfo.PropertyType);
-            ret = typeConverter.ConvertFromString(importedData);
+            try
+            {
+                TypeConverter typeConverter = TypeDescriptor.GetConverter(propertyInfo.PropertyType);
+                ret = typeConverter.ConvertFromString(importedData);
+            } 
+            catch (FormatException ex)
+            {
+                // TODO-EXCEPT: We should probably convert this into a custom exception type with a better exception message rather than just logging here and rethrowing.
+                Plugin.logger.LogError($"Failed to convert imported data to the correct type. Key = \"{dataKey}\" Value = \"{importedData}\"");
+                throw ex;
+            }
         }
         return true;
     }
@@ -136,7 +145,7 @@ public static class GenericDataTransfer
         catch (Exception e)
         {
             // TODO: This try catch block should probably be moved to a separate no-throw version of this function. In some cases we'd definitely rather not throw but others we probably should.
-            Plugin.logger.LogError(e);
+            Plugin.logger.LogError($" Error while importing: {e}");
             ret = default(T);
             return false;
         }

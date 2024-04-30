@@ -1,8 +1,9 @@
-﻿using RavenM.Lobby.DataTransfer;
-using Steamworks;
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+
+using RavenM.Lobby.DataTransfer;
+using Steamworks;
 
 namespace RavenM.Lobby;
 
@@ -38,7 +39,7 @@ public static class SteamLobbyDataTransfer
             string fullDataKey = GenericDataTransfer.HandlePrefix(dataPrefix, dataKey);
             string data = SteamMatchmaking.GetLobbyData(lobbyID, fullDataKey);
 
-            LoggingHelper.LogMarker($"Importing {fullDataKey} - {data}", false);
+            // LoggingHelper.LogMarker($"Importing {fullDataKey} - {data}", false);
             return data;
         }
 
@@ -80,10 +81,10 @@ public static class SteamLobbyDataTransfer
         GenericDataTransfer.ExportTo(
             classToExport,
             (dataKey, dataValue) => CachedExport(
-                memberCache, 
+                memberCache,
                 logPrepend,
                 GenericDataTransfer.HandlePrefix(dataPrefix, dataKey),
-                dataValue, 
+                dataValue,
                 exportDelegate));
     }
 
@@ -101,7 +102,6 @@ public static class SteamLobbyDataTransfer
 
     public static bool HasQueuedData()
     {
-        LogCache();
         if (lobbyData.FailedSend != null || lobbyData.DataToWrite.Count != 0)
         {
             return true;
@@ -112,7 +112,6 @@ public static class SteamLobbyDataTransfer
 
     public static bool SendQueuedDataToSteam(CSteamID lobbyID)
     {
-        LoggingHelper.LogMarker();
         // We failed whilst sending something previously, let's clean that up first.
         if (lobbyData.FailedSend != null)
         {
@@ -130,7 +129,6 @@ public static class SteamLobbyDataTransfer
 
         while (lobbyData.DataToWrite.Count > 0)
         {
-            LoggingHelper.LogMarker("Attempting to send data");
             if (!lobbyData.DataToWrite.TryDequeue(out string key))
             {
                 LoggingHelper.LogMarker("Failed");
@@ -138,7 +136,7 @@ public static class SteamLobbyDataTransfer
             }
 
             string value = lobbyData.Cache[key];
-            LoggingHelper.LogMarker($"key = {key}, value = {value}");
+            LoggingHelper.LogMarker($"Attempting to send data: key = {key}, value = {value}");
             lobbyData.FailedSend = new FailedSendData();
             lobbyData.FailedSend.KeyValuePair = new (key, lobbyData.Cache[key]);
 
@@ -160,47 +158,49 @@ public static class SteamLobbyDataTransfer
         string key = data.KeyValuePair.Key;
         string value = data.KeyValuePair.Value;
 
-        if (value.Length > MaxSendableLength)
+        if (value.Length < MaxSendableLength)
         {
-            // TODO: We still need to mark this field as having been too long.
-            if (data.UnsentChunks == null)
-            {
-                data.UnsentChunks = new (Enumerable.Range(0, value.Length / MaxSendableLength).Select(i => value.Substring(i * MaxSendableLength, MaxSendableLength)));
-                LoggingHelper.LogMarker($"Chunk Count = {data.UnsentChunks.Count}");
-            }
-
-            LoggingHelper.LogMarker($"(data.lastSentIndex {data.lastSentIndex} < data.UnsentChunks.Count {data.UnsentChunks.Count})");
-            while (data.lastSentIndex < data.UnsentChunks.Count)
-            {
-                string subKey;
-                string subValue;
-                if (data.lastSentIndex == -1)
-                {
-                    subKey = key;
-                    subValue = $"{LongFieldMarker} {data.UnsentChunks.Count}";
-                }
-                else
-                {
-                    subKey = $"{key}.{data.lastSentIndex}";
-                    subValue = data.UnsentChunks[data.lastSentIndex];
-                }
-                LoggingHelper.LogMarker($"key = {subKey}, value = {subValue}");
-
-                if (!SendWrapper(lobbyID, subKey, subValue))
-                {
-                    return false; // We failed to send via steam so we need to take a break and not send for a bit.
-                }
-
-                data.lastSentIndex++;
-            }
-        }
-        else
-        {
-            LoggingHelper.LogMarker();
             if (!SendWrapper(lobbyID, key, value))
             {
                 return false; // We failed to send via steam so we need to take a break and not send for a bit.
             }
+
+            return true;
+        }
+
+        // TODO: This code is completely irrelevant now. We need to completely rework this now that we understand what the MaxSendableLength actually represents.
+        LoggingHelper.LogMarker("This should never happen!");
+
+        // Too much data to fit in one field, split it up.
+        if (data.UnsentChunks == null)
+        {
+            data.UnsentChunks = new (Enumerable.Range(0, value.Length / MaxSendableLength).Select(i => value.Substring(i * MaxSendableLength, MaxSendableLength)));
+            LoggingHelper.LogMarker($"Chunk Count = {data.UnsentChunks.Count}");
+        }
+
+        LoggingHelper.LogMarker($"(data.lastSentIndex {data.lastSentIndex} < data.UnsentChunks.Count {data.UnsentChunks.Count})");
+        while (data.lastSentIndex < data.UnsentChunks.Count)
+        {
+            string subKey;
+            string subValue;
+            if (data.lastSentIndex == -1)
+            {
+                subKey = key;
+                subValue = $"{LongFieldMarker} {data.UnsentChunks.Count}";
+            }
+            else
+            {
+                subKey = $"{key}.{data.lastSentIndex}";
+                subValue = data.UnsentChunks[data.lastSentIndex];
+            }
+            LoggingHelper.LogMarker($"key = {subKey}, value = {subValue}");
+
+            if (!SendWrapper(lobbyID, subKey, subValue))
+            {
+                return false; // We failed to send via steam so we need to take a break and not send for a bit.
+            }
+
+            data.lastSentIndex++;
         }
 
         return true;
@@ -208,10 +208,9 @@ public static class SteamLobbyDataTransfer
 
     private static bool SendWrapper(CSteamID lobbyID, string key, string value)
     {
-        LoggingHelper.LogMarker($"key = {key}, value = {value}", false);
         bool sentSuccesfully =
              SteamMatchmaking.SetLobbyData(lobbyID, key, value);
-        LoggingHelper.LogMarker($"Sent successfully = {sentSuccesfully}", false);
+        LoggingHelper.LogMarker($"key = {key}, value = {value}, Sent successfully = {sentSuccesfully}", false);
         if (!sentSuccesfully)
         {
             return false; // We failed to send via steam so we need to take a break and not send for a bit.
@@ -220,7 +219,11 @@ public static class SteamLobbyDataTransfer
         return true;
     }
 
-    private static void LogCache()
+    /// <summary>
+    /// Debug log function. 
+    /// Currently not hooked up but leaving it in as it's incredibly useful if the cache is suspected to be causing issues.
+    /// </summary>
+    public static void LogCache()
     {
         int length = 0;
         string cacheString = "";
@@ -233,5 +236,11 @@ public static class SteamLobbyDataTransfer
         cacheString += $"Total Length - {length}";
 
         LoggingHelper.LogMarker(cacheString, false);
+    }
+
+    public static void ClearCache()
+    {
+        memberCache.Clear();
+        lobbyData = new(); // TODO: This may not be thread safe to do but I don't actually think any of our code is currently so this is probably fine.
     }
 }

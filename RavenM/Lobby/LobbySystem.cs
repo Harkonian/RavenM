@@ -1,22 +1,16 @@
-﻿using System;
+﻿using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 
 using Steamworks;
-using SimpleJSON;
 using UnityEngine;
-using System.Collections;
-using RavenM.DiscordGameSDK;
 
 namespace RavenM.Lobby;
 
 public class LobbySystem : MonoBehaviour
 {
     public static LobbySystem instance;
-
-    FixedServerSettings FixedSettings;
-
     public bool InLobby { get; private set; } = false;
 
     public bool LobbyDataReady { get; private set; } = false;
@@ -35,10 +29,11 @@ public class LobbySystem : MonoBehaviour
 
     public List<PublishedFileId_t> ModsToDownload = [];
 
-    // TODO: These are really hazily defined in my mind. What does each of these actually mean?
+    // TODO: These next two bools are really hazily defined in my mind. What does each of these actually mean?
     public bool LoadedServerMods = false;
 
     public bool RequestModReload = false;
+
 
     public bool TEMP__NeedsReloadOnLeave = false;
 
@@ -46,21 +41,9 @@ public class LobbySystem : MonoBehaviour
 
     public List<CSteamID> CurrentKickedMembers = [];
 
-    public CSteamID KickPrompt = CSteamID.Nil;
-
-    public string NotificationText = string.Empty;
-
     public bool nameTagsEnabled = true;
 
     public bool nameTagsForTeamOnly = false;
-
-    public List<GameObject> sortedModdedVehicles = [];
-
-    public Dictionary<string, Tuple<String, float>> LobbySetCache = [];
-
-    public Dictionary<string, Tuple<String, float>> LobbySetMemberCache = [];
-
-    public static readonly float SET_DEADLINE = 5f; // Seconds
 
     public bool IntentionToStart = false;
 
@@ -68,7 +51,11 @@ public class LobbySystem : MonoBehaviour
 
     public CachedGameData Cache { get; private set; } = null;
 
+    public FixedServerSettings FixedSettings = new();
+
     internal MatchSettings MatchSettings = new();
+
+    internal LobbyMemberData localMemberData = new();
 
     private void Awake()
     {
@@ -98,18 +85,6 @@ public class LobbySystem : MonoBehaviour
         return ret;
     }
 
-    public void SetLobbyDataDedup(string key, string value) {
-        if (!InLobby || !LobbyDataReady || !IsLobbyOwner)
-            return;
-
-        // De-dup any lobby values since apparently Steam doesn't do that for you.
-        if (LobbySetCache.TryGetValue(key, out Tuple<String, float> oldValue) && oldValue.Item1 == value && Time.time < oldValue.Item2)
-            return;
-
-        //SteamMatchmaking.SetLobbyData(LobbyID, key, value);
-        LobbySetCache[key] = new Tuple<String, float>(value, Time.time + SET_DEADLINE);
-    }
-
     private void OnLobbyData(LobbyDataUpdate_t lobbyDataUpdateEvent)
     {
         if (!InLobby)
@@ -129,6 +104,8 @@ public class LobbySystem : MonoBehaviour
 
         if (lobbyDataUpdateEvent.m_bSuccess == 0 || SteamMatchmaking.GetLobbyDataCount(lobby) == 0)
             OpenLobbies.Remove(lobby);
+
+        LogAllSteamLobbyData(lobby);
 
         SteamLobbyDataTransfer.ImportFromLobbyData(lobby, out FixedServerSettings settings);
 
@@ -165,22 +142,21 @@ public class LobbySystem : MonoBehaviour
             return; // We're the lobby owner, we don't need to read our own updates.
         }
 
-
-        if (!SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out MatchSettings temp))
+        if (!SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out MatchSettings))
         {
             LoggingHelper.LogMarker("Failed to import data from lobby!!", false);
             return;
         }
 
         string result = "Imported From Steam Update Notification:\n";
-        DataTransfer.GenericDataTransfer.ExportTo(temp, (key, value) => result += $"{key} = {value}\n");
+        DataTransfer.GenericDataTransfer.ExportTo(MatchSettings, (key, value) => result += $"{key} = {value}\n");
         LoggingHelper.LogMarker(result);
-
     }
 
+    // Host only function.
     IEnumerator SendLobbyDataPeriodic()
     {
-        float currentDelay = 10.0f;
+        float currentDelay = 1.0f;
 
         while (InLobby && IsLobbyOwner)
         {
@@ -199,30 +175,39 @@ public class LobbySystem : MonoBehaviour
 
             yield return new WaitForSeconds(currentDelay);
         }
+    }
 
+    // Hosts & clients both should have this running.
+    IEnumerator SendLobbyMemberDataPeriodic()
+    {
+        float currentDelay = 1.0f;
+
+        while (InLobby)
+        {
+            SteamLobbyDataTransfer.ExportToMemberData(LobbyID, localMemberData);
+
+            yield return new WaitForSeconds(currentDelay);
+        }
     }
 
     private void OnLobbyEnter(LobbyEnter_t pCallback)
     {
-        Plugin.logger.LogInfo("Joined lobby!");
+        LobbyID = new CSteamID(pCallback.m_ulSteamIDLobby);
+        Plugin.logger.LogInfo($"Joined lobby: {LobbyID}");
         // TODO: This is all about setting our data to its initial states, Should this belong in Reset instead?
         CurrentKickedMembers.Clear();
-        LobbySetCache.Clear();
         RequestModReload = false;
         LoadedServerMods = false;
 
         if (pCallback.m_EChatRoomEnterResponse != (uint)EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess)
         {
-            NotificationText = "Unknown error joining lobby. (Does it still exist?)";
-            InLobby = false;
+            BeginLeavingLobby(Notifications.JoiningError);
             return;
         }
 
         LobbyDataReady = true;
-        LobbyID = new CSteamID(pCallback.m_ulSteamIDLobby);
-        Plugin.logger.LogInfo($"Lobby ID: {LobbyID}");
-
         ChatManager.instance.PushLobbyChatMessage($"Welcome to the lobby! Press {ChatManager.instance.GlobalChatKeybind} to chat.");
+        StartCoroutine(SendLobbyMemberDataPeriodic());
 
         if (IsLobbyOwner)
         {
@@ -231,16 +216,20 @@ public class LobbySystem : MonoBehaviour
 
             Plugin.logger.LogInfo($"Lobby Owner ID: {OwnerID}");
             FixedSettings.OwnerID = OwnerID.m_SteamID;
-            SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, FixedSettings);
 
             SetupServerMods();
             StartCoroutine(SendLobbyDataPeriodic());
+
+            SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, FixedSettings);
+            SteamLobbyDataTransfer.SendQueuedDataToSteam(LobbyID);
 
             CompletedLoading();
         }
         else
         {
             Plugin.logger.LogInfo("Attempting to start as client.");
+
+            LogAllSteamLobbyData(LobbyID);
 
             if (!SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out FixedSettings) || Plugin.BuildGUID != FixedSettings.BuildID || !SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out MatchSettings))
             {
@@ -256,12 +245,12 @@ public class LobbySystem : MonoBehaviour
 
             ServerMods.Clear();
             ModsToDownload.Clear();
-            string fullModsString = SteamMatchmaking.GetLobbyData(LobbyID, "mods");
+            // TODO-MEMBER-MODS: Comment on why this is being stored in the host's member settings and also probably come up with a more structured way to access this.
+            string fullModsString = SteamMatchmaking.GetLobbyMemberData(LobbyID, OwnerID, "mods");
             LoggingHelper.LogMarker($"fullModsString = {fullModsString}");
             string[] mods = fullModsString.Split(',');
             foreach (string mod_str in mods)
             {
-                LoggingHelper.LogMarker(mod_str, false);
                 if (mod_str == string.Empty)
                     continue;
                 PublishedFileId_t mod_id = new PublishedFileId_t(ulong.Parse(mod_str));
@@ -280,7 +269,6 @@ public class LobbySystem : MonoBehaviour
                     }
                 }
 
-                LoggingHelper.LogMarker($"{alreadyHasMod}", false);
                 if (!alreadyHasMod)
                 {
                     ModsToDownload.Add(mod_id);
@@ -288,7 +276,10 @@ public class LobbySystem : MonoBehaviour
             }
 
             LoggingHelper.LogMarker($"Server mod count:{ServerMods.Count}, Number to download:{ModsToDownload.Count}");
-            SteamMatchmaking.SetLobbyMemberData(LobbyID, "modsDownloaded", (ServerMods.Count - ModsToDownload.Count).ToString());
+
+            int modsDownloaded = (ServerMods.Count - ModsToDownload.Count);
+            localMemberData.ServerModsDownloaded = modsDownloaded;
+
             TriggerModRefresh();
 
             nameTagsEnabled = FixedSettings.NameTagsEnabled;
@@ -296,9 +287,7 @@ public class LobbySystem : MonoBehaviour
 
             if (MatchSettings.MatchStarted && FixedSettings.MidgameJoin == false)
             {
-                Plugin.logger.LogInfo("The game has already started :( Leaving lobby.");
                 BeginLeavingLobby(Notifications.HotJoinDisabled);
-                return;
             }
         }
     }
@@ -315,7 +304,10 @@ public class LobbySystem : MonoBehaviour
             ModsToDownload.Remove(pCallback.m_nPublishedFileId);
 
             if (InLobby && LobbyDataReady)
-                SteamMatchmaking.SetLobbyMemberData(LobbyID, "modsDownloaded", (ServerMods.Count - ModsToDownload.Count).ToString());
+            {
+                int modsDownloaded = (ServerMods.Count - ModsToDownload.Count);
+                localMemberData.ServerModsDownloaded = modsDownloaded;
+            }
 
             TriggerModRefresh();
         }
@@ -409,6 +401,7 @@ public class LobbySystem : MonoBehaviour
         // TODO: Horrible hack
         if (GameManager.IsInLoadingScreen())
         {
+            LoggingHelper.LogMarker();
             if (IsLobbyOwner)
             {
                 SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, MatchSettings);
@@ -448,13 +441,13 @@ public class LobbySystem : MonoBehaviour
             InstantActionMaps.instance.teamDropdown.value = 0;
         }
 
-        SteamMatchmaking.SetLobbyMemberData(LobbyID, "team", InstantActionMaps.instance.teamDropdown.value == 0 ? "<color=blue>E</color>" : "<color=red>R</color>");
+        localMemberData.Team = InstantActionMaps.instance.teamDropdown.value;
         
         if (IsLobbyOwner)
         {
             HostUpdate();
         }
-        else if (SteamMatchmaking.GetLobbyMemberData(LobbyID, SteamUser.GetSteamID(), "loaded") == "yes") // TODO: We're seriously checking with steam if we think we've loaded or not?
+        else if (localMemberData.Loaded)
         {
             ClientUpdate();
         }
@@ -467,6 +460,8 @@ public class LobbySystem : MonoBehaviour
         IsLobbyOwner = false;
         InLobby = false;
 
+        localMemberData = new();
+
         if (LoadedServerMods)
         {
             RequestModReload = TEMP__NeedsReloadOnLeave;
@@ -477,6 +472,8 @@ public class LobbySystem : MonoBehaviour
         ModsToDownload.Clear();
         ServerMods.Clear();
         CurrentKickedMembers.Clear();
+        StopAllCoroutines();
+        SteamLobbyDataTransfer.ClearCache();
     }
 
     public void HostLobby(FixedServerSettings settings)
@@ -491,7 +488,6 @@ public class LobbySystem : MonoBehaviour
 
     public void HostUpdate()
     {
-        // TODO: This update function is just sending data to steam. Once we de/serialize this automatically this function may cease to be needed.
         MatchSettings.PopulateData(InstantActionMaps.instance, Cache);
         SteamLobbyDataTransfer.ExportToLobbyData(LobbyID, MatchSettings);
     }
@@ -499,12 +495,6 @@ public class LobbySystem : MonoBehaviour
     public void ClientUpdate()
     {
         InstantActionMaps.instance.configFlagsToggle.isOn = false; // Clients never get this option so always turn it off to make sure a client doesn't check this themselves.
-
-        if (!SteamLobbyDataTransfer.ImportFromLobbyData(LobbyID, out MatchSettings))
-        {
-            Plugin.logger.LogError("Failed to retrieve data from lobby.");
-            return;
-        }
 
         if (!instance.LoadedServerMods)
         {
@@ -519,7 +509,7 @@ public class LobbySystem : MonoBehaviour
         }
     }
 
-    public void BeginLeavingLobby(string notification = null, bool leaveSteam = true)
+    public void BeginLeavingLobby(string notification = null)
     {
         if (notification != null)
         {
@@ -528,13 +518,9 @@ public class LobbySystem : MonoBehaviour
         }
 
         Plugin.logger.LogInfo("BeginLeavingLobby");
-
-        if (leaveSteam)
-            SteamMatchmaking.LeaveLobby(LobbyID);
-        else
-            ResetState();
-
+        SteamMatchmaking.LeaveLobby(LobbyID);
         InLobby = false;
+        ResetState();
         ChatManager.instance.ResetChat();
     }
 
@@ -581,19 +567,7 @@ public class LobbySystem : MonoBehaviour
         Plugin.logger.LogInfo("Loading completed after joining this lobby!");
 
         Cache = new CachedGameData(InstantActionMaps.instance);
-
-
-        // TODO: Get this from the cache instead.
-        // Sort vehicles
-        var moddedVehicles = ModManager.AllVehiclePrefabs().ToList();
-        moddedVehicles.Sort((x, y) => x.name.CompareTo(y.name));
-        sortedModdedVehicles = moddedVehicles;
-
-        // END: TODO:
-
-        // TODO: Swap the latter for the former.
-        // LocalMemberData.Loaded = true;
-        SteamMatchmaking.SetLobbyMemberData(LobbyID, "loaded", "yes");
+        localMemberData.Loaded = true;
 
         if (IsLobbyOwner)
         {
@@ -630,7 +604,11 @@ public class LobbySystem : MonoBehaviour
 
         string finalModsString = string.Join(",", mods.ToArray());
         LoggingHelper.LogMarker(finalModsString);
-        SteamMatchmaking.SetLobbyData(LobbyID, "mods", finalModsString);
+
+        // TODO-MEMBER-MODS: Comment on why this is being stored in the host's member settings and also probably come up with a more structured way to access this.
+        SteamMatchmaking.SetLobbyMemberData(LobbyID, "mods", finalModsString);
+
+        FixedSettings.ModCount = mods.Count;
     }
 
     public void HostStartedMatch()
@@ -648,7 +626,10 @@ public class LobbySystem : MonoBehaviour
 
     public void MatchSteamModSubscriptions()
     {
-        if (IsLobbyOwner) return;
+        if (IsLobbyOwner)
+        {
+            return;
+        }
 
         foreach (var mod in ModManager.instance.mods)
         {
@@ -671,5 +652,24 @@ public class LobbySystem : MonoBehaviour
                 SteamUGC.UnsubscribeItem(mod.workshopItemId);
             }
         }
+    }
+
+    public void LogAllSteamLobbyData(CSteamID lobby, [CallerMemberName] string memberName = "", [CallerLineNumber] int lineNumber = 0)
+    {
+        int lobbyDataCount = SteamMatchmaking.GetLobbyDataCount(lobby);
+
+        string log = $"Loading data from Lobby {lobby}\n";
+        int dataLength = 0;
+
+        for (int i = 0; i < lobbyDataCount; i++)
+        {
+            SteamMatchmaking.GetLobbyDataByIndex(lobby, i, out string key, 8192, out string value, 8192);
+            log += $"Got data {key} - {value}\n";
+            dataLength += value.Length;
+        }
+
+        log += $"Total Length: {dataLength}";
+
+        LoggingHelper.LogMarker(log, false, memberName, lineNumber);
     }
 }

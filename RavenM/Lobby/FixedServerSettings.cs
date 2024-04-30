@@ -6,7 +6,7 @@ namespace RavenM.Lobby;
 public class FixedServerSettings
 {
     public const uint LobbyMemberMin = 2;
-    public const uint LobbyMemberMax = 250; //Steam lobby max. TODO: Is there no way to get this from the Steam APIs themselves rather than magic numbering this?
+    public const uint LobbyMemberMax = 250; //Steam lobby max. There does not appear to be a constant for this in the Steam APIs so here's a magic number.
 
     private uint lobbyMemberCap = LobbyMemberMax;
 
@@ -36,6 +36,12 @@ public class FixedServerSettings
 
     public bool TeamOnlyNameTags { get; set; } = false;
 
+    public int ModCount { get; set; } = 0;
+
+    /// <summary>
+    /// Represents what version of RavenM a given lobby is running. No default value as we want to confirm this field was actually set by a host.
+    /// Hosts must set this as part of hosting.
+    /// </summary>
     public string BuildID { get; set; }
 
     public FixedServerSettings() { }

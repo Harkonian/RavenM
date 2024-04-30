@@ -1,8 +1,10 @@
-﻿using RavenM.Lobby.DataTransfer;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+
+using RavenM.Lobby.DataTransfer;
 using UnityEngine;
+
 using static TurretSpawner;
 using static VehicleSpawner;
 
@@ -22,7 +24,7 @@ internal class TeamEquipmentData : GenericNested<TeamEquipmentData>
     public int SelectedSkin { get; set; }
 
     // Using these private transfer variables to do the data transfer whilst still giving us useful typing when dealing with the data in code elsewhere.
-    // TODO: Technically these are wildly inefficient as they regenerate every access. Ideally we'd cache this and only regenerate the string if 
+    // TODO: These are pretty inefficient as they regenerate every access. Ideally we'd cache this and only regenerate the string if 
     //       we know we've changed the underlying data. Subscribing to events or using harmony patches to figure out when the data is changing would be wise.
     [DataTransferIncluded]
     private string WeaponTransferString
@@ -90,7 +92,10 @@ internal class TeamEquipmentData : GenericNested<TeamEquipmentData>
 
 
         if (changedVehicles || changedTurrets)
+        {
             GamePreview.UpdatePreview();
+            LoggingHelper.LogMarker();
+        }
 
         InstantActionMaps.instance.skinDropdowns[teamIndex].value = this.SelectedSkin;
     }
@@ -138,8 +143,9 @@ internal class TeamEquipmentData : GenericNested<TeamEquipmentData>
         {
             int prefabIndex = indexArray[i];
             T enumValue = enumValues[i];
-            GameObject prefab = prefabIndex != -1 ? cachedPrefabs[i] : null;
+            GameObject prefab = prefabIndex != -1 ? cachedPrefabs[prefabIndex] : null;
             enumToPrefabDict[enumValue] = prefab;
+            string name = prefab ? prefab.name : "NULL";
         }
 
         return ret;

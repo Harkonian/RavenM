@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+
 using UnityEngine;
 
 namespace RavenM.Lobby;
@@ -43,14 +44,16 @@ public class CachedGameData
         PopulateCustomMaps();
         UpdateCacheFromIAM(instantActionMaps);
         
+        // TODO: There are a bunch of duplicates in here, (63 entries versus about 20 actual vehicle options), we should cull them down.
         VehiclePrefabs.AddRange(ActorManager.instance.defaultVehiclePrefabs);
         VehiclePrefabs.AddRange(ModManager.AllVehiclePrefabs());
         VehiclePrefabs.Sort((x, y) => x.name.CompareTo(y.name));
+        LogPrefabs(VehiclePrefabs);
 
-        
         TurretPrefabs.AddRange(ActorManager.instance.defaultTurretPrefabs);
         TurretPrefabs.AddRange(ModManager.AllTurretPrefabs());
         TurretPrefabs.Sort((x, y) => x.name.CompareTo(y.name));
+        LogPrefabs(TurretPrefabs);
 
         PopulateWeaponCache();
     }
@@ -62,14 +65,14 @@ public class CachedGameData
         maps = (List<InstantActionMaps.MapEntry>)typeof(InstantActionMaps).GetField("entries", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(mapsInstance);
     }
 
-    private void PopulateCustomMaps()
+    public void PopulateCustomMaps()
     {
         CustomMapEntries.Clear();
-        Plugin.logger.LogInfo("Populating MapCache Custom Maps Entries.");
+        LoggingHelper.LogMarker("Populating MapCache Custom Maps Entries.");
 
         foreach (Transform item in InstantActionMaps.instance.customMapsBrowser.contentPanel)
         {
-            var entryComponent = item.gameObject.GetComponent<CustomMapEntry>();
+            CustomMapEntry entryComponent = item.gameObject.GetComponent<CustomMapEntry>();
 
             if (entryComponent == null)
             {
@@ -79,14 +82,19 @@ public class CachedGameData
 
             string key = GetMapKeyFromEntry(entryComponent.entry);
 
-            Plugin.logger.LogInfo(key);
-            Plugin.logger.LogInfo($"sceneName = {entryComponent.entry.sceneName}");
-            Plugin.logger.LogInfo($"sourceMod = {entryComponent.entry.sourceMod}");
-            Plugin.logger.LogInfo($"metaData.displayName = {entryComponent.entry.metaData.displayName}");
-            Plugin.logger.LogInfo($"metaData.suggestedBots = {entryComponent.entry.metaData.suggestedBots}");
+            LoggingHelper.LogMarker($" key = '{key}'\t" +
+                $"sceneName = '{entryComponent.entry.sceneName}'\t" +
+                $"sourceMod = '{entryComponent.entry.sourceMod}'\t" +
+                $"metaData.displayName = '{entryComponent.entry.metaData.displayName}'\t" +
+                $"metaData.suggestedBots = '{entryComponent.entry.metaData.suggestedBots}'");
 
             CustomMapEntries[key] = entryComponent;
         }
+    }
+
+    public void ResetMaps()
+    {
+        maps = null;
     }
 
     public static string GetMapKeyFromEntry(InstantActionMaps.MapEntry entry)
@@ -111,6 +119,19 @@ public class CachedGameData
     public static bool IsCustomMapKey(string mapKey)
     {
         return mapKey.Contains(CustomMapKeyDesignator);
+    }
+
+    private static void LogPrefabs(List<GameObject> prefabs)
+    {
+        string objectsString = "";
+
+        for (int i = 0; i < prefabs.Count; i++)
+        {
+            var prefab = prefabs[i];
+            objectsString += $"{i} - {prefab.name} - {prefab.gameObject.name}\n";
+        }
+
+        LoggingHelper.LogMarker(objectsString);
     }
 
     private void PopulateWeaponCache()

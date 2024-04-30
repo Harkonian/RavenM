@@ -1,5 +1,3 @@
-using UnityEngine;
-
 namespace RavenM.Lobby;
 
 /// <summary>
@@ -40,7 +38,7 @@ internal class MatchSettings : MatchListingInfo
 
     public int GameLength { get; set; }
 
-    public int TeamDropdownValue { get; set; }
+    public int TeamDropdownValue { get; set; } // TODO: This is only used if playing spec ops and technically can be removed if we just set our team to the host's team which is in member data already.
 
     public TeamEquipmentData Eagle { get; set; } = new();
 
@@ -63,19 +61,22 @@ internal class MatchSettings : MatchListingInfo
         TeamDropdownValue = mapsInstance.teamDropdown.value;
 
         var mapEntries = cache.Maps;
-        if (mapEntries != null && mapEntries.Count > SelectedMapIndex)
+        if (mapEntries.Count <= SelectedMapIndex)
+        {
+            LoggingHelper.LogMarker($"Cache.Maps.Count {{'{mapEntries.Count}'}} <= SelectedMapIndex {{'{SelectedMapIndex}'}}");
+            cache.UpdateCacheFromIAM(mapsInstance);
+            mapEntries = cache.Maps;
+        }
+
+        if (mapEntries.Count > SelectedMapIndex)
         {
             SelectedMapName = CachedGameData.GetMapKeyFromEntry(mapEntries[SelectedMapIndex]);
+            LoggingHelper.LogMarker($"SelectedMapName {{'{SelectedMapName}'}}");
         }
         else
         {
-            // If this is hit then we've either not got maps at all in the dropdown or we have selected a map outside of that dropdown's data
-            // Neither situation should be possible so let's log out what info we have to double check later.
-            int count = -1;
-            if (mapEntries != null)
-                count = mapEntries.Count;
-            Plugin.logger.LogError("mapEntries != null && mapEntries.Count > SelectedMapIndex");
-            Plugin.logger.LogError($"'{mapEntries != null}' && '{count}' > '{SelectedMapIndex}'");
+            Plugin.logger.LogError("Attempted Map Refresh did not fix index out of range issue.");
+            Plugin.logger.LogError($"Map count '{mapEntries.Count}' <= SelectedMapIndex '{SelectedMapIndex}'");
         }
 
         Eagle.GetFromGameSettings(GameInfoContainer.TEAM_EAGLE, cache);
@@ -112,22 +113,64 @@ internal class MatchSettings : MatchListingInfo
 
     private bool SetMap(InstantActionMaps mapsInstance, CachedGameData cache)
     {
-        if (SelectedMapIndex == cache.CustomMapIndex)
-        {
-            if (mapsInstance.mapDropdown.value != cache.CustomMapIndex || CachedGameData.GetMapKeyFromEntry(cache.Maps[cache.CustomMapIndex]) != SelectedMapName)
-            {
-                if (!cache.CustomMapEntries.TryGetValue(SelectedMapName, out CustomMapEntry entry))
-                {
-                    Plugin.logger.LogError($"Could not find map with selected map name {SelectedMapName}.");
-                    return false;
-                }
+        bool returnVal = SetMapInt(mapsInstance, cache);
 
-                entry.Select();
-            }
+        if (returnVal == false)
+        {
+            //TODO: Test removing this.
+            LoggingHelper.LogMarker();
+            cache.PopulateCustomMaps();
+            returnVal = SetMapInt(mapsInstance, cache);
         }
-        else
+
+        return returnVal;
+    }
+
+    private bool SetMapInt(InstantActionMaps mapsInstance, CachedGameData cache)
+    {
+        if (SelectedMapIndex != cache.CustomMapIndex)
         {
             mapsInstance.mapDropdown.value = SelectedMapIndex;
+            return true;
+        }
+
+        InstantActionMaps.MapEntry currentCustomMap = null;
+        LoggingHelper.LogMarker($"mapsInstance.mapDropdown.value {{'{mapsInstance.mapDropdown.value}'}} > cache.CustomMapIndex {{'{cache.CustomMapIndex}'}}");
+        if (cache.Maps.Count > cache.CustomMapIndex)
+        {
+            currentCustomMap = cache.Maps[cache.CustomMapIndex];
+            LoggingHelper.LogMarker($"{currentCustomMap}");
+        }
+
+        string currentCustomMapName = CachedGameData.GetMapKeyFromEntry(currentCustomMap);
+        LoggingHelper.LogMarker($"mapName {{'{currentCustomMapName}'}} != SelectedMapName {{'{SelectedMapName}'}}");
+
+        if (mapsInstance.mapDropdown.value != cache.CustomMapIndex || currentCustomMapName != SelectedMapName)
+        {
+            if (!cache.CustomMapEntries.TryGetValue(SelectedMapName, out CustomMapEntry entry))
+            {
+                Plugin.logger.LogError($"Could not find map with selected map name {SelectedMapName}.");
+                return false;
+            }
+
+            if (entry != null)
+                entry.Select();
+            else
+            {
+                string message = $"Returned null entry for {currentCustomMapName}. Checking all other entries in map.\n";
+                foreach (var kvp in cache.CustomMapEntries)
+                {
+                    string mapEntrySceneName = "null";
+                    if (kvp.Value != null)
+                    {
+                        mapEntrySceneName = kvp.Value.entry.sceneName;
+                    }
+                    message += $"'{kvp.Key}' - '{mapEntrySceneName}' \n";
+                }
+
+                LoggingHelper.LogMarker(message);
+                return false;
+            }
         }
 
         return true;

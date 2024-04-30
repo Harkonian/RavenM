@@ -171,8 +171,7 @@ namespace RavenM
                 // ...means the owner left.
                 if (LobbySystem.instance.OwnerID == id)
                 {
-                    LobbySystem.instance.NotificationText = "Lobby closed by host.";
-                    SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
+                    LobbySystem.instance.BeginLeavingLobby(Notifications.LobbyClosed);
                 }
             }
             else
@@ -343,7 +342,8 @@ namespace RavenM
                     bool parsedArg = bool.TryParse(command[1], out bool result);
                     if (parsedArg)
                     {
-                        LobbySystem.instance.SetLobbyDataDedup("nameTags", result.ToString());
+                        // TODO-CHAT-CMDS
+                        //LobbySystem.instance.SetLobbyDataDedup("nameTags", result.ToString());
                         PushLobbyCommandChatMessage("Set nameTags to " + result.ToString(), Color.green, false, false);
                         UI.GameUI.instance.ToggleNameTags();
                     }
@@ -362,7 +362,8 @@ namespace RavenM
                     bool parsedArg2 = bool.TryParse(command[1], out bool result2);
                     if (parsedArg2)
                     {
-                        LobbySystem.instance.SetLobbyDataDedup("nameTagsForTeamOnly", result2.ToString());
+                        // TODO-CHAT-CMDS
+                        //LobbySystem.instance.SetLobbyDataDedup("nameTagsForTeamOnly", result2.ToString());
                         PushLobbyCommandChatMessage("Set nameTags for Team only to " + result2.ToString(), Color.green, false, false);
                         UI.GameUI.instance.ToggleNameTags();
                     }
@@ -381,8 +382,7 @@ namespace RavenM
                         var member = new CSteamID(memberIdI);
                         if (member == SteamId)
                         {
-                            LobbySystem.instance.NotificationText = "You were kicked from the lobby! You can no longer join this lobby.";
-                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
+                            LobbySystem.instance.BeginLeavingLobby(Notifications.PlayerKicked);
                         }
                         else if (!LobbySystem.instance.CurrentKickedMembers.Contains(member))
                         {
@@ -451,7 +451,8 @@ namespace RavenM
                     bool parsedArg = bool.TryParse(command[1], out bool result);
                     if (parsedArg)
                     {
-                        LobbySystem.instance.SetLobbyDataDedup("nameTags", result.ToString());
+                        // TODO-CHAT-CMDS
+                        //LobbySystem.instance.SetLobbyDataDedup("nameTags", result.ToString());
                         PushCommandChatMessage("Set nameTags to " + result.ToString(), Color.green, false, false);
                         UI.GameUI.instance.ToggleNameTags();
                     }
@@ -470,7 +471,8 @@ namespace RavenM
                     bool parsedArg2 = bool.TryParse(command[1], out bool result2);
                     if (parsedArg2)
                     {
-                        LobbySystem.instance.SetLobbyDataDedup("nameTagsForTeamOnly", result2.ToString());
+                        // TODO-CHAT-CMDS
+                        //LobbySystem.instance.SetLobbyDataDedup("nameTagsForTeamOnly", result2.ToString());
                         PushCommandChatMessage("Set nameTags for Team only to " + result2.ToString(), Color.green, false, false);
                         UI.GameUI.instance.ToggleNameTags();
                     }
@@ -501,8 +503,7 @@ namespace RavenM
                         var member = new CSteamID(memberIdI);
                         if (member == SteamId)
                         {
-                            LobbySystem.instance.NotificationText = "You were kicked from the lobby! You can no longer join this lobby.";
-                            SteamMatchmaking.LeaveLobby(LobbySystem.instance.LobbyID);
+                            LobbySystem.instance.BeginLeavingLobby(Notifications.PlayerKicked);
                         }
                         else if (!LobbySystem.instance.CurrentKickedMembers.Contains(member))
                         {

@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Reflection;
 
@@ -8,19 +7,14 @@ using UnityEngine;
 
 namespace RavenM.Lobby;
 
-public static class Notifications
+internal static class Notifications
 {
-    public const string LobbyClosed = "Lobby closed by host.";
-
-    public const string PlayerKicked = "You were kicked from the lobby! You can no longer join this lobby.";
-
-    public const string JoiningError = "Unknown error joining lobby. (Does it still exist?)";
-
-    public const string PluginMismatch = "You cannot join this lobby because you and the host are using different versions of RavenM.";
-
-    public const string UserCancelled = "Cancelled loading server mods. Leaving lobby.";
-
-    public const string HotJoinDisabled = "This lobby has already started a match and has disabled mid-game joining or is playing a gamemode that does not support it.";
+    internal const string LobbyClosed = "Lobby closed by host.";
+    internal const string PlayerKicked = "You were kicked from the lobby! You can no longer join this lobby.";
+    internal const string JoiningError = "Unknown error joining lobby. (Does it still exist?)";
+    internal const string PluginMismatch = "You cannot join this lobby because you and the host are using different versions of RavenM.";
+    internal const string UserCancelled = "Cancelled loading server mods. Leaving lobby.";
+    internal const string HotJoinDisabled = "This lobby has already started a match and has disabled mid-game joining or is playing a gamemode that does not support it.";
 }
 
 public class LobbyGUI
@@ -30,12 +24,10 @@ public class LobbyGUI
         public static Color DebugColor = Color.magenta; // If we see magenta anywhere something has gone wrong.
         public static Color NotLoaded = Color.red;
         public static Color FullyLoaded = Color.green;
-        public static Color WarningColor = new(1.0f, .75f, 0.0f);
-
-        public static string ConvertToOpenTag(Color color)
-        {
-            return ConvertToOpenTag($"#{ColorUtility.ToHtmlStringRGB(color)}");
-        }
+        public static Color Warning = new(1.0f, .75f, 0.0f);
+        // Both pulled from thanks in the preview image in hte lobby. TODO Figure out if thre is a definitive place to get the colors.
+        public static Color Eagle = new(76.0f / 255.0f, 81.0f / 255.0f, 240.0f / 255.0f);
+        public static Color Raven = new(212.0f / 255.0f, 55.0f / 255.0f, 61.0f / 255.0f);
 
         // Takes in strings that match a color name (red, yellow, etc) or takes a set of three hex codes prepended by a # (#FFFFFF, #777777)
         public static string ConvertToOpenTag(string color)
@@ -53,20 +45,15 @@ public class LobbyGUI
         // Takes in strings that match a color name (red, yellow, etc) or takes a set of three hex codes prepended by a # (#FFFFFF, #777777)
         public static string CreateColoredLabelString(string text, string color)
         {
-            return $"{ColorBank.ConvertToOpenTag(color)}{text}{ColorBank.CloseTag}";
+            return $"{ConvertToOpenTag(color)}{text}{CloseTag}";
         }
 
         static ColorBank()
         {
+            // Way too neon green, tone it down a bit.
             FullyLoaded *= .75f;
         }
     }
-
-    
-
-    // TODO: Data from "ServerSettings" from previous work. This definitely should not be here.
-    private const uint LobbyMemberMax = 250; // Steam lobby max. Is there no way to get this from the Steam apis themselves rather than magic numbering this?
-
 
     public static Texture2D LobbyBackground = null;
     public static Texture2D ProgressTexture = null;
@@ -82,6 +69,8 @@ public class LobbyGUI
 
     // If set to non-nill represents a user the host is attempting to kick and is being asked if they are sure they want to kick them.
     public CSteamID KickPrompt = CSteamID.Nil;
+
+    internal static LobbyMemberData UnknownUserData = new(); // This could be entirely excluded as we rely on the default values anyway but including this in case we want to set them later.
 
     public static string BackButtonLabel = ColorBank.CreateColoredLabelString("BACK", "#888888");
 
@@ -99,7 +88,7 @@ public class LobbyGUI
 
     private struct TeamDisplayData
     {
-        // E or R or X in an error
+        // First initial of the team name or ? in the case of an error
         public string TeamDisplayString;
         public Color Color;
         public TeamDisplayData(string teamDisplayString, Color color)
@@ -109,12 +98,12 @@ public class LobbyGUI
         }
     }
 
-    private static readonly List<TeamDisplayData> teamData = new()
-    {
-        new TeamDisplayData("X", ColorBank.DebugColor),
-        new TeamDisplayData("E", Color.blue),
-        new TeamDisplayData("R", Color.red)
-    };
+    private static readonly List<TeamDisplayData> teamData =
+    [
+        new TeamDisplayData("?", ColorBank.DebugColor),
+        new TeamDisplayData("E", ColorBank.Eagle),
+        new TeamDisplayData("R", ColorBank.Raven)
+    ];
 
     private static TeamDisplayData GetFromTeamIndex(int teamIndex) 
     {
@@ -379,16 +368,18 @@ public class LobbyGUI
         // TODO: LOBBY-COUNTS Same as above, should we cache this and only query every few seconds rather than every frame?
         GUILayout.Label($"MEMBERS: {SteamMatchmaking.GetNumLobbyMembers(SelectedLobbyID)}/{SteamMatchmaking.GetLobbyMemberLimit(SelectedLobbyID)}");
 
-        var modList = SteamMatchmaking.GetLobbyData(SelectedLobbyID, "mods");
-        var modCount = modList != string.Empty ? modList.Split(',').Length : 0;
-        GUILayout.Label($"MODS: {modCount}");
+        GUILayout.Label($"MODS: {CurrentServerListing.ModCount}");
 
         GUILayout.Space(10f);
 
-        if (!SteamLobbyDataTransfer.ImportFromLobbyData(SelectedLobbyID, out MatchListingInfo matchListing) || Plugin.BuildGUID != CurrentServerListing.BuildID)
+        if (Plugin.BuildGUID != CurrentServerListing.BuildID)
         {
             GUILayout.Label(ColorBank.CreateColoredLabelString("This lobby is running on a different version of RavenM!", Color.red));
-        }                
+        }
+        else if (!SteamLobbyDataTransfer.ImportFromLobbyData(SelectedLobbyID, out MatchListingInfo matchListing))
+        {
+            GUILayout.Label(ColorBank.CreateColoredLabelString("Could not convert match data from this lobby!", Color.yellow));
+        }
         else
         {
             GUILayout.Label($"BOTS: {matchListing.BotNumberText}");
@@ -429,7 +420,7 @@ public class LobbyGUI
 
         if (GameManager.IsInMainMenu() && NotificationText != string.Empty)
         {
-            GUILayout.BeginArea(new Rect((Screen.width - 250f) / 2f, (Screen.height - 200f) / 2f, 250f, 200f), string.Empty);
+            GUILayout.BeginArea(CreateCenteredRect(250f, 200f), string.Empty);
             GUILayout.BeginVertical(lobbyStyle);
 
             CreateLabelSection("RavenM Message:", Color.red);
@@ -451,7 +442,7 @@ public class LobbyGUI
         if (GameManager.IsInMainMenu() && system.IntentionToStart)
         {
             // TODO: Refactor the three notification/warning/confirmation menus.
-            GUILayout.BeginArea(new Rect((Screen.width - 250f) / 2f, (Screen.height - 200f) / 2f, 250f, 200f), string.Empty);
+            GUILayout.BeginArea(CreateCenteredRect(250f, 200f), string.Empty);
             GUILayout.BeginVertical(lobbyStyle);
 
             CreateLabelSection("RavenM WARNING:", Color.red);
@@ -508,16 +499,13 @@ public class LobbyGUI
 
             GUILayout.EndVertical();
             GUILayout.EndArea();
-        }        
-
-        // Plugin.logger.LogInfo($"In Lobby : {system.InLobby}");
-        // Plugin.logger.LogInfo($"LobbyDataReady : {system.LobbyDataReady}");
+        }
 
         if (system.InLobby && system.LobbyDataReady)
         {
             if (!IngameNetManager.instance.IsClient)
             {
-                // TODO: These magic numbers feel odd They may work as an okay baseline but some amount of scaling based on screen size would probably do better.
+                // TODO: These magic numbers feel odd. They may work as an okay baseline but some amount of scaling based on screen size would probably do better.
                 if (ChatManager.instance.SelectedChatPosition == 1) // Position to the right
                 {
                     ChatManager.instance.CreateChatArea(true, 300f, 400f, 570f, Screen.width - 310f);
@@ -555,7 +543,7 @@ public class LobbyGUI
             if (!system.IsLobbyOwner)
             {
                 GUILayout.Space(5f);
-                if (GUILayout.Button(ColorBank.CreateColoredLabelString("MATCH STEAM SUBSCRIBTIONS", Color.yellow)))
+                if (GUILayout.Button(ColorBank.CreateColoredLabelString("MATCH STEAM\nSUBSCRIBTIONS", Color.yellow)))
                 {
                     system.MatchSteamModSubscriptions();
                 }
@@ -637,43 +625,8 @@ public class LobbyGUI
     private void CreateMemberDisplay(LobbySystem system, CSteamID memberId)
     {
         string name = SteamFriends.GetFriendPersonaName(memberId);
-        string team = SteamMatchmaking.GetLobbyMemberData(system.LobbyID, memberId, "team");
 
-        string modsDownloaded = SteamMatchmaking.GetLobbyMemberData(system.LobbyID, memberId, "modsDownloaded");
-        // Can't use ServerMods.Count for the lobby owner.
-        string totalMods = SteamMatchmaking.GetLobbyData(system.LobbyID, "mods").Split(',').Length.ToString();
-        var readyColor = (GameManager.IsInMainMenu() ? SteamMatchmaking.GetLobbyMemberData(system.LobbyID, memberId, "loaded") == "yes" 
-                                                        : SteamMatchmaking.GetLobbyMemberData(system.LobbyID, memberId, "ready") == "yes") 
-                                                        ? "green" : "red";
-
-        if (memberId != KickPrompt)
-        {
-            GUILayout.BeginHorizontal();
-            if (SteamMatchmaking.GetLobbyMemberData(system.LobbyID, memberId, "loaded") == "yes")
-            {
-                GUILayout.Box(team);
-            }
-            else
-            {
-                GUILayout.Box($"({modsDownloaded}/{totalMods})");
-            }
-
-            GUILayout.FlexibleSpace();
-            GUILayout.Box($"<color={readyColor}>{name}</color>");
-            GUILayout.FlexibleSpace();
-            GUILayout.Box(team);
-            GUILayout.EndHorizontal();
-
-            if (Event.current.type == EventType.Repaint
-                && GUILayoutUtility.GetLastRect().Contains(Event.current.mousePosition)
-                && Input.GetMouseButtonUp(1)
-                && system.IsLobbyOwner
-                && memberId != SteamUser.GetSteamID())
-            {
-                KickPrompt = memberId;
-            }
-        }
-        else
+        if (memberId == KickPrompt)
         {
             if (GUILayout.Button(ColorBank.CreateColoredLabelString($"KICK {name}", Color.red)))
             {
@@ -686,12 +639,51 @@ public class LobbyGUI
             {
                 KickPrompt = CSteamID.Nil;
             }
+            return;
+        }
+
+        if (!SteamLobbyDataTransfer.ImportFromMemberData(system.LobbyID, memberId, out LobbyMemberData memberData))
+        {
+            memberData = UnknownUserData;
+        }
+
+        TeamDisplayData teamData = GetFromTeamIndex(memberData.Team);
+        string teamColorString = ColorBank.CreateColoredLabelString(teamData.TeamDisplayString, teamData.Color);
+        Color readyColor = (GameManager.IsInMainMenu() ? memberData.Loaded : memberData.Ready) ? ColorBank.FullyLoaded : ColorBank.NotLoaded;
+
+        GUILayout.BeginHorizontal();
+        if (memberData.Loaded)
+        {
+            GUILayout.Box(teamColorString);
+        }
+        else
+        {
+            GUILayout.Box($"({memberData.ServerModsDownloaded}/{system.FixedSettings.ModCount})");
+        }
+
+        GUILayout.FlexibleSpace();
+        GUILayout.Box(ColorBank.CreateColoredLabelString(name, readyColor));
+        GUILayout.FlexibleSpace();
+        GUILayout.Box(teamColorString);
+        GUILayout.EndHorizontal();
+
+        if (Event.current.type == EventType.Repaint
+            && GUILayoutUtility.GetLastRect().Contains(Event.current.mousePosition)
+            && Input.GetMouseButtonUp(1)
+            && system.IsLobbyOwner
+            && memberId != SteamUser.GetSteamID())
+        {
+            KickPrompt = memberId;
         }
     }
 
     private void TestFunction(LobbySystem lobbySystem)
     {
-        LoggingHelper.LogMarker();
+        LoggingHelper.LogMarker($"LobbyID = '{lobbySystem.LobbyID}'");
+
+        lobbySystem.LogAllSteamLobbyData(lobbySystem.LobbyID);
+
+
         SteamLobbyDataTransfer.ImportFromLobbyData(lobbySystem.LobbyID, out MatchSettings temp);
         if (temp == null)
         {
@@ -702,22 +694,21 @@ public class LobbyGUI
         DataTransfer.GenericDataTransfer.ExportTo(temp, (key, value) => result += $"{key} = {value}\n");
         LoggingHelper.LogMarker(result);
 
-        string weaponString = "";
-        foreach (int weaponIndex in temp.Eagle.WeaponIndices)
-        {
-            if (weaponIndex < lobbySystem.Cache.Weapons.Count)
-            {
-                var weapon = lobbySystem.Cache.Weapons[weaponIndex];
-                weaponString += $"{weapon.name}\n";
-            }
-            else
-            {
-                LoggingHelper.LogMarker($"Attempting to add weapon {weaponIndex} but only have {lobbySystem.Cache.Weapons.Count} in the cache");
-            }
-        }
+        //string weaponString = "";
+        //foreach (int weaponIndex in temp.Eagle.WeaponIndices)
+        //{
+        //    if (weaponIndex < lobbySystem.Cache.Weapons.Count)
+        //    {
+        //        var weapon = lobbySystem.Cache.Weapons[weaponIndex];
+        //        weaponString += $"{weapon.name}\n";
+        //    }
+        //    else
+        //    {
+        //        LoggingHelper.LogMarker($"Attempting to add weapon {weaponIndex} but only have {lobbySystem.Cache.Weapons.Count} in the cache");
+        //    }
+        //}
 
-        LoggingHelper.LogMarker(weaponString);
-
+        //LoggingHelper.LogMarker(weaponString);
 
     }
 }
